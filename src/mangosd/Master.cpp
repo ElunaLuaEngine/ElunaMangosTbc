@@ -20,15 +20,15 @@
     \ingroup mangosd
 */
 
-#ifndef WIN32
+#ifndef _WIN32
 #include "PosixDaemon.h"
 #endif
 
 #include "Common.h"
 #include "Master.h"
-#include "WorldSocket.h"
+#include "Server/WorldSocket.h"
 #include "WorldRunnable.h"
-#include "World.h"
+#include "World/World.h"
 #include "Log.h"
 #include "Timer.h"
 #include "SystemConfig.h"
@@ -37,8 +37,8 @@
 #include "Util.h"
 #include "revision_sql.h"
 #include "MaNGOSsoap.h"
-#include "MassMailMgr.h"
-#include "DBCStores.h"
+#include "Mails/MassMailMgr.h"
+#include "Server/DBCStores.h"
 
 #include "Config/Config.h"
 #include "Database/DatabaseEnv.h"
@@ -48,14 +48,14 @@
 
 #include <memory>
 
-#ifdef WIN32
+#ifdef _WIN32
 #include "ServiceWin32.h"
 extern int m_ServiceStatus;
 #endif
 
 INSTANTIATE_SINGLETON_1(Master);
 
-volatile uint32 Master::m_masterLoopCounter = 0;
+volatile bool Master::m_canBeKilled = false;
 
 class FreezeDetectorRunnable : public MaNGOS::Runnable
 {
@@ -79,7 +79,6 @@ class FreezeDetectorRunnable : public MaNGOS::Runnable
                 MaNGOS::Thread::Sleep(1000);
 
                 uint32 curtime = WorldTimer::getMSTime();
-                // DEBUG_LOG("anti-freeze: time=%u, counters=[%u; %u]",curtime,Master::m_masterLoopCounter,World::m_worldLoopCounter);
 
                 // normal work
                 if (w_loops != World::m_worldLoopCounter)
@@ -126,7 +125,7 @@ int Master::Run()
     ///- Initialize the World
     sWorld.SetInitialWorldSettings();
 
-#ifndef WIN32
+#ifndef _WIN32
     detachDaemon();
 #endif
     // server loaded successfully => enable async DB requests
@@ -151,7 +150,7 @@ int Master::Run()
 
     MaNGOS::Thread* cliThread = nullptr;
 
-#ifdef WIN32
+#ifdef _WIN32
     if (sConfig.GetBoolDefault("Console.Enable", true) && (m_ServiceStatus == -1)/* need disable console in service mode*/)
 #else
     if (sConfig.GetBoolDefault("Console.Enable", true))
@@ -162,7 +161,7 @@ int Master::Run()
     }
 
     ///- Handle affinity for multiple processors and process priority on Windows
-#ifdef WIN32
+#ifdef _WIN32
     {
         HANDLE hProcess = GetCurrentProcess();
 
@@ -216,16 +215,15 @@ int Master::Run()
     }
 
     {
-        //auto const listenIP = sConfig.GetStringDefault("BindIP", "0.0.0.0");
-        MaNGOS::Listener<WorldSocket> listener(sWorld.getConfig(CONFIG_UINT32_PORT_WORLD), 8);
+        MaNGOS::Listener<WorldSocket> listener(sConfig.GetStringDefault("BindIP", "0.0.0.0"), int32(sWorld.getConfig(CONFIG_UINT32_PORT_WORLD)), 8);
 
         std::unique_ptr<MaNGOS::Listener<RASocket>> raListener;
         if (sConfig.GetBoolDefault("Ra.Enable", false))
-            raListener.reset(new MaNGOS::Listener<RASocket>(sConfig.GetIntDefault("Ra.Port", 3443), 1));
+            raListener.reset(new MaNGOS::Listener<RASocket>(sConfig.GetStringDefault("Ra.IP", "0.0.0.0"), sConfig.GetIntDefault("Ra.Port", 3443), 1));
 
         std::unique_ptr<SOAPThread> soapThread;
         if (sConfig.GetBoolDefault("SOAP.Enabled", false))
-            soapThread.reset(new SOAPThread("0.0.0.0", sConfig.GetIntDefault("SOAP.Port", 7878)));
+            soapThread.reset(new SOAPThread(sConfig.GetStringDefault("SOAP.IP", "127.0.0.1"), sConfig.GetIntDefault("SOAP.Port", 7878)));
 
         // wait for shut down and then let things go out of scope to close them down
         while (!World::IsStopped())
@@ -264,7 +262,7 @@ int Master::Run()
 
     if (cliThread)
     {
-#ifdef WIN32
+#ifdef _WIN32
 
         // this only way to terminate CLI thread exist at Win32 (alt. way exist only in Windows Vista API)
         //_exit(1);
@@ -311,6 +309,9 @@ int Master::Run()
 
         delete cliThread;
     }
+
+    // mark this can be killable
+    m_canBeKilled = true;
 
     ///- Exit the process with specified return value
     return World::GetExitCode();
@@ -465,6 +466,14 @@ void Master::_OnSignal(int s)
             break;
     }
 
+    // give a 30 sec timeout in case of Master cannot finish properly
+    int32 timeOut = 200;
+    while (!m_canBeKilled && timeOut > 0)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        --timeOut;
+    }
+
     signal(s, _OnSignal);
 }
 
@@ -481,9 +490,9 @@ void Master::_HookSignals()
 /// Unhook the signals before leaving
 void Master::_UnhookSignals()
 {
-    signal(SIGINT, 0);
-    signal(SIGTERM, 0);
+    signal(SIGINT, nullptr);
+    signal(SIGTERM, nullptr);
 #ifdef _WIN32
-    signal(SIGBREAK, 0);
+    signal(SIGBREAK, nullptr);
 #endif
 }

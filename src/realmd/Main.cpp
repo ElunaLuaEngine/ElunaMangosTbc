@@ -44,7 +44,7 @@
 #include <chrono>
 #include <thread>
 
-#ifdef WIN32
+#ifdef _WIN32
 #include "ServiceWin32.h"
 char serviceName[] = "realmd";
 char serviceLongName[] = "MaNGOS realmd service";
@@ -74,7 +74,7 @@ void usage(const char* prog)
     sLog.outString("Usage: \n %s [<options>]\n"
                    "    -v, --version            print version and exist\n\r"
                    "    -c config_file           use config_file as configuration file\n\r"
-#ifdef WIN32
+#ifdef _WIN32
                    "    Running as service functions:\n\r"
                    "    -s run                   run as service\n\r"
                    "    -s install               install service\n\r"
@@ -88,18 +88,18 @@ void usage(const char* prog)
 }
 
 /// Launch the realm server
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     std::string configFile, serviceParameter;
 
     boost::program_options::options_description desc("Allowed options");
     desc.add_options()
-        ("config,c", boost::program_options::value<std::string>(&configFile)->default_value(_REALMD_CONFIG), "configuration file")
-        ("version,v", "print version and exit")
-#ifdef WIN32
-        ("s", boost::program_options::value<std::string>(&serviceParameter), "<run, install, uninstall> service");
+    ("config,c", boost::program_options::value<std::string>(&configFile)->default_value(_REALMD_CONFIG), "configuration file")
+    ("version,v", "print version and exit")
+#ifdef _WIN32
+    ("s", boost::program_options::value<std::string>(&serviceParameter), "<run, install, uninstall> service");
 #else
-        ("s", boost::program_options::value<std::string>(&serviceParameter), "<run, stop> service");
+    ("s", boost::program_options::value<std::string>(&serviceParameter), "<run, stop> service");
 #endif
 
     boost::program_options::variables_map vm;
@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
         boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), vm);
         boost::program_options::notify(vm);
     }
-    catch (boost::program_options::error const &e)
+    catch (boost::program_options::error const& e)
     {
         std::cerr << "ERROR: " << e.what() << std::endl << std::endl;
         std::cerr << desc << std::endl;
@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-#ifdef WIN32                                                // windows service command need execute before config read
+#ifdef _WIN32                                                // windows service command need execute before config read
     if (vm.count("s"))
     {
         switch (::tolower(serviceParameter[0]))
@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-#ifndef WIN32                                               // posix daemon commands need apply after config read
+#ifndef _WIN32                                               // posix daemon commands need apply after config read
     if (vm.count("s"))
     {
         switch (::tolower(serviceParameter[0]))
@@ -161,7 +161,7 @@ int main(int argc, char *argv[])
 
     sLog.Initialize();
 
-    sLog.outString("%s [realm-daemon]", _FULLVERSION(REVISION_DATE, REVISION_TIME, REVISION_ID));
+    sLog.outString("%s [realm-daemon]", _FULLVERSION(REVISION_DATE, REVISION_ID));
     sLog.outString("<Ctrl-C> to stop.\n");
     sLog.outString("Using configuration file %s.", configFile.c_str());
 
@@ -222,17 +222,14 @@ int main(int argc, char *argv[])
     LoginDatabase.Execute("DELETE FROM ip_banned WHERE unbandate<=UNIX_TIMESTAMP() AND unbandate<>bandate");
     LoginDatabase.CommitTransaction();
 
-    auto rmport = sConfig.GetIntDefault("RealmServerPort", DEFAULT_REALMSERVER_PORT);
-    std::string bind_ip = sConfig.GetStringDefault("BindIP", "0.0.0.0");
-
     // FIXME - more intelligent selection of thread count is needed here.  config option?
-    MaNGOS::Listener<AuthSocket> listener(rmport, 1);
+    MaNGOS::Listener<AuthSocket> listener(sConfig.GetStringDefault("BindIP", "0.0.0.0"), sConfig.GetIntDefault("RealmServerPort", DEFAULT_REALMSERVER_PORT), 1);
 
     ///- Catch termination signals
     HookSignals();
 
     ///- Handle affinity for multiple processors and process priority on Windows
-#ifdef WIN32
+#ifdef _WIN32
     {
         HANDLE hProcess = GetCurrentProcess();
 
@@ -281,7 +278,7 @@ int main(int argc, char *argv[])
     auto const numLoops = sConfig.GetIntDefault("MaxPingTime", 30) * MINUTE * 10;
     uint32 loopCounter = 0;
 
-#ifndef WIN32
+#ifndef _WIN32
     detachDaemon();
 #endif
     ///- Wait for termination signal
@@ -294,7 +291,7 @@ int main(int argc, char *argv[])
             LoginDatabase.Ping();
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-#ifdef WIN32
+#ifdef _WIN32
         if (m_ServiceStatus == 0) stopEvent = true;
         while (m_ServiceStatus == 2) Sleep(1000);
 #endif
@@ -372,10 +369,10 @@ void HookSignals()
 /// Unhook the signals before leaving
 void UnhookSignals()
 {
-    signal(SIGINT, 0);
-    signal(SIGTERM, 0);
+    signal(SIGINT, nullptr);
+    signal(SIGTERM, nullptr);
 #ifdef _WIN32
-    signal(SIGBREAK, 0);
+    signal(SIGBREAK, nullptr);
 #endif
 }
 

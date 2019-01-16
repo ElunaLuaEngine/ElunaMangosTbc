@@ -28,6 +28,8 @@ set(SRC_GRP_AUTH
     Auth/md5.h
     Auth/Sha1.cpp
     Auth/Sha1.h
+    Auth/base32.cpp
+    Auth/base32.h
 )
 
 set(SRC_GRP_CONFIG
@@ -95,7 +97,6 @@ set(SRC_GRP_UTIL
     WorldPacket.h
 )
 
-
 set(LIBRARY_SRCS
     ${SRC_GRP_AUTH}
     ${SRC_GRP_CONFIG}
@@ -103,14 +104,14 @@ set(LIBRARY_SRCS
     ${SRC_GRP_DATABASE_DBC}
     ${SRC_GRP_LOG}
     ${SRC_GRP_UTIL}
-	${SRC_GRP_NETWORK}
+    ${SRC_GRP_NETWORK}
     Common.cpp
     Common.h
     revision_sql.h
+    revision.h
     Threading.cpp
     Threading.h
 )
-
 
 source_group("Auth"
   FILES
@@ -146,11 +147,16 @@ source_group("Util"
 if(WIN32)
   set(LIBRARY_SRCS
       ${LIBRARY_SRCS}
-      WheatyExceptionReport.cpp
-      WheatyExceptionReport.h
       ServiceWin32.cpp
       ServiceWin32.h
      )
+  if(MSVC)
+    set(LIBRARY_SRCS
+      ${LIBRARY_SRCS}
+      WheatyExceptionReport.cpp
+      WheatyExceptionReport.h
+     )
+  endif()
 else()
   set(LIBRARY_SRCS
       ${LIBRARY_SRCS}
@@ -161,27 +167,46 @@ endif()
 
 # include external dependencies without warnings
 include_directories(SYSTEM
-  ${CMAKE_SOURCE_DIR}/dep/include
+  ${OPENSSL_INCLUDE_DIR}
 )
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/src/framework
   ${CMAKE_BINARY_DIR}
 )
 
-if(POSTGRESQL)
-  include_directories(${PostgreSQL_INCLUDE_DIRS})
+if(POSTGRESQL AND POSTGRESQL_FOUND AND NOT WIN32)
+  include_directories(SYSTEM ${PostgreSQL_INCLUDE_DIRS})
 else()
-  include_directories(${MYSQL_INCLUDE_DIR})
+  include_directories(SYSTEM ${MYSQL_INCLUDE_DIR})
 endif()
 
 add_library(${LIBRARY_NAME} STATIC
   ${LIBRARY_SRCS}
 )
 
-if(POSTGRESQL)
-  target_link_libraries(${LIBRARY_NAME} ${PostgreSQL_LIBRARIES})
+target_link_libraries(${LIBRARY_NAME}
+  PUBLIC framework
+  PUBLIC utf8cpp
+  PUBLIC ${OPENSSL_LIBRARIES}
+)
+
+target_include_directories(${LIBRARY_NAME}
+  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+  PUBLIC ${OPENSSL_INCLUDE_DIR}
+  PRIVATE ${Boost_INCLUDE_DIRS}
+)
+
+if(POSTGRESQL AND POSTGRESQL_FOUND AND NOT WIN32)
+  target_include_directories(${LIBRARY_NAME} PUBLIC ${PostgreSQL_INCLUDE_DIRS})
+else()
+  target_include_directories(${LIBRARY_NAME} PUBLIC ${MYSQL_INCLUDE_DIR})
 endif()
 
-add_dependencies(${LIBRARY_NAME} revision.h)
+# Mark the revision header as being generated.
+set_source_files_properties(${CMAKE_SOURCE_DIR}/src/shared/revision.h
+  PROPERTIES GENERATED TRUE
+             HEADER_FILE_ONLY TRUE)
+if(MSVC)
+  set_target_properties(${LIBRARY_NAME} PROPERTIES PROJECT_LABEL "Shared")
+endif()

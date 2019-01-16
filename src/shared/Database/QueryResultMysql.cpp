@@ -28,7 +28,7 @@ QueryResultMysql::QueryResultMysql(MYSQL_RES* result, MYSQL_FIELD* fields, uint6
     MANGOS_ASSERT(mCurrentRow);
 
     for (uint32 i = 0; i < mFieldCount; ++i)
-        mCurrentRow[i].SetType(fields[i].type);
+        mCurrentRow[i].SetType(ConvertNativeType(fields[i].type));
 }
 
 QueryResultMysql::~QueryResultMysql()
@@ -38,12 +38,10 @@ QueryResultMysql::~QueryResultMysql()
 
 bool QueryResultMysql::NextRow()
 {
-    MYSQL_ROW row;
-
     if (!mResult)
         return false;
 
-    row = mysql_fetch_row(mResult);
+    MYSQL_ROW row = mysql_fetch_row(mResult);
     if (!row)
     {
         EndQuery();
@@ -68,9 +66,9 @@ void QueryResultMysql::EndQuery()
     }
 }
 
-Field::SimpleDataTypes QueryResultMysql::GetSimpleType(enum_field_types type)
+enum Field::DataTypes QueryResultMysql::ConvertNativeType(enum_field_types mysqlType) const
 {
-    switch (type)
+    switch (mysqlType)
     {
         case FIELD_TYPE_TIMESTAMP:
         case FIELD_TYPE_DATE:

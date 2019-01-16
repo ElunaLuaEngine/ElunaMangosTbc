@@ -20,9 +20,9 @@
 #define AUCTION_HOUSE_BOT_H
 
 #include "Config/Config.h"
-#include "AuctionHouseMgr.h"
-#include "SharedDefines.h"
-#include "Item.h"
+#include "AuctionHouse/AuctionHouseMgr.h"
+#include "Globals/SharedDefines.h"
+#include "Entities/Item.h"
 
 // shadow of ItemQualities with skipped ITEM_QUALITY_HEIRLOOM, anything after ITEM_QUALITY_ARTIFACT(6) in fact
 enum AuctionQuality
@@ -126,7 +126,7 @@ class AuctionBotConfig
     public:
         AuctionBotConfig();
 
-        void        SetConfigFileName(const std::string &filename) { m_configFileName = filename; }
+        void        SetConfigFileName(const std::string& filename) { m_configFileName = filename; }
         bool        Initialize();
         const char* GetAHBotIncludes() const { return m_AHBotIncludes.c_str(); }
         const char* GetAHBotExcludes() const { return m_AHBotExcludes.c_str(); }

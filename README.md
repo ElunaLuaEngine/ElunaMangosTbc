@@ -1,11 +1,11 @@
 # C(ontinued)-MaNGOS -- README
 [![Build Status](https://travis-ci.org/cmangos/mangos-tbc.svg?branch=master)](https://travis-ci.org/cmangos/mangos-tbc) [![Windows Build status](https://ci.appveyor.com/api/projects/status/github/cmangos/mangos-tbc?branch=master&svg=true)](https://ci.appveyor.com/project/cmangos/mangos-tbc/branch/master)
 
-This file is part of the CMaNGOS Project. See [AUTHORS](AUTHORS.md) file for Copyright information
+This file is part of the CMaNGOS Project. See [AUTHORS](AUTHORS.md) and [COPYRIGHT](COPYRIGHT.md) files for Copyright information
 
 ## Welcome to C(ontinued)-MaNGOS
 
-C(ontinued)-MaNGOS is a free project with the following goal:
+CMaNGOS is a free project with the following goal:
 
   **Doing WoW-Emulation Right!**
 
@@ -27,62 +27,39 @@ This means, we want to focus on:
     we want to emulate.
   * Developing things right also includes documenting and discussing
     _how_ to do things better, hence...
-  * Learning and Teaching are very important in our view, and must
-    always be part of what we do.
+  * Learning and teaching are very important in our view, and must
+    always be a part of what we do.
 
 To be able to accomplish these goals, we support and promote:
 
 * Freedom
-  * of our work: Our work - including our code - is released under the GPL
-    So everbody is free to use and contribute to this open source project
-  * for our developers and contributers on things that interest them.
+  * of our work: Our work - including our code - is released under the GPL.
+    So everybody is free to use and contribute to this open source project.
+  * for our developers and contributors on things that interest them.
     No one here is telling anybody _what_ to do.
-    If you want somebody to do something for you, pay him,
+    If you want somebody to do something for you, pay them,
     but we are here to enjoy.
   * to have FUN with developing.
 
 * A friendly environment
-  * We try to let personal issues behind us.
+  * We try to leave personal issues behind us.
   * We only argue about content, and not about thin air!
   * We follow the [Netiquette](http://tools.ietf.org/html/rfc1855).
 
 -- The C(ontinued)-MaNGOS Team!
 
-## ScriptDev2
-  ScriptDev2 is a script library, an extention of the scripting capabilities
-  that comes with cMaNGOS ( http://cmangos.net/ ), written in C++ and is
-  compatible with Windows and Linux. SQL needed for database support both
-  MySQL and PostgreSQL.
-
-  This script library provides unique scripts for NPCs, gameobjects, events
-  and other that need unique implementation.
-
-  Once ScriptDev2 is compiled it is automatically run by MaNGOS on server
-  startup.
-
-  For further information on ScriptDev2, please visit our project subforum
-  at http://cmangos.net/forum-32.html
-
-  Documentation on various development related topics can be found in the
-  ../doc/scripts docs/ sub directory as well as on the subforum.
-
-  The required SQL files for creating the database backend are included in
-  the ../sql/ sub directory. If you are updating from an older ScriptDev2
-  version, make sure to take a look at the SQL files provided in the
-  ../sql/updates/ 
-
 ## Further information
 
   You can find further information about CMaNGOS at the following places:
-  * [CMaNGOS Forum](http://cmangos.net/)
-  * CMaNGOS IRC channel: #cmangos on irc.rizon.net
+  * [CMaNGOS Forum](https://forum.cmangos.net/)
+  * [CMaNGOS Discord](https://discord.gg/Dgzerzb)
   * [GitHub repositories](https://github.com/cmangos/)
   * [Issue tracker](https://github.com/cmangos/issues/issues)
   * [Pull Requests](https://github.com/cmangos/mangos-tbc/pulls)
   * [Current build status on Travis CI](https://travis-ci.org/cmangos/mangos-tbc/)
   * [Wiki](https://github.com/cmangos/issues/wiki) with additional information on installation
   * [Contributing Guidelines](CONTRIBUTING.md)
-  * Documentation can be found in the doc/ subdirectory and on the github wiki
+  * Documentation can be found in the doc/ subdirectory and on the GitHub wiki
 
 ## License
 
@@ -104,6 +81,9 @@ To be able to accomplish these goals, we support and promote:
   You can find the full license text in the file [COPYING](COPYING) delivered with this package.
 
 ### Exceptions to GPL
+
+  World of Warcraft content and materials are trademarks and copyrights of Blizzard or its licensors. All rights reserved.
+  CMaNGOS project is not affiliated with Blizzard or its licensors.
 
   Some third-party libraries CMaNGOS uses have other licenses, that must be
   uphold.  These libraries are located within the dep/ directory

@@ -1,7 +1,7 @@
 #ifndef LOAD_LIB_H
 #define LOAD_LIB_H
 
-#ifdef WIN32
+#ifdef _MSC_VER
 typedef __int64            int64;
 typedef __int32            int32;
 typedef __int16            int16;
@@ -13,9 +13,9 @@ typedef unsigned __int8    uint8;
 #else
 #include <stdint.h>
 #ifndef uint64_t
-#ifdef __linux__
-#include <linux/types.h>
-#endif
+# ifdef __linux__
+#  include <linux/types.h>
+# endif
 #endif
 typedef int64_t            int64;
 typedef int32_t            int32;
@@ -29,24 +29,25 @@ typedef uint8_t            uint8;
 
 #define FILE_FORMAT_VERSION    18
 
+#define fcc_MVER 0x4d564552 // MVER
+
 //
 // File version chunk
 //
+
 struct file_MVER
 {
-    union
-    {
-        uint32 fcc;
-        char   fcc_txt[4];
-    };
+    uint32 fcc;
     uint32 size;
     uint32 ver;
 };
 
 class FileLoader
 {
+    private:
         uint8*  data;
         uint32  data_size;
+
     public:
         virtual bool prepareLoadedData();
         uint8* GetData()     {return data;}
@@ -58,4 +59,5 @@ class FileLoader
         bool loadFile(char* filename, bool log = true);
         virtual void free();
 };
+
 #endif

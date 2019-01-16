@@ -19,7 +19,7 @@
 #include "OutdoorPvPMgr.h"
 #include "Policies/Singleton.h"
 #include "OutdoorPvP.h"
-#include "World.h"
+#include "World/World.h"
 #include "Log.h"
 #include "OutdoorPvPEP.h"
 #include "OutdoorPvPHP.h"
@@ -38,8 +38,8 @@ OutdoorPvPMgr::OutdoorPvPMgr()
 
 OutdoorPvPMgr::~OutdoorPvPMgr()
 {
-    for (uint8 i = 0; i < MAX_OPVP_ID; ++i)
-        delete m_scripts[i];
+    for (auto& m_script : m_scripts)
+        delete m_script;
 }
 
 #define LOAD_OPVP_ZONE(a)                                           \
@@ -102,9 +102,7 @@ OutdoorPvP* OutdoorPvPMgr::GetScriptOfAffectedZone(uint32 zoneId)
         case ZONE_ID_HELLFIRE_CITADEL:
         case ZONE_ID_BLOOD_FURNACE:
         case ZONE_ID_SHATTERED_HALLS:
-        case ZONE_ID_MAGTHERIDON_LAIR:
             return m_scripts[OPVP_ID_HP];
-        case ZONE_ID_SERPENTSHRINE_CAVERN:
         case ZONE_ID_STREAMVAULT:
         case ZONE_ID_UNDERBOG:
         case ZONE_ID_SLAVE_PENS:
@@ -154,9 +152,9 @@ void OutdoorPvPMgr::Update(uint32 diff)
     if (!m_updateTimer.Passed())
         return;
 
-    for (uint8 i = 0; i < MAX_OPVP_ID; ++i)
-        if (m_scripts[i])
-            m_scripts[i]->Update(m_updateTimer.GetCurrent());
+    for (auto& m_script : m_scripts)
+        if (m_script)
+            m_script->Update(m_updateTimer.GetCurrent());
 
     m_updateTimer.Reset();
 }

@@ -155,8 +155,8 @@ void Database::StopServer()
     m_pResultQueue = nullptr;
     m_pAsyncConn = nullptr;
 
-    for (size_t i = 0; i < m_pQueryConnections.size(); ++i)
-        delete m_pQueryConnections[i];
+    for (auto& m_pQueryConnection : m_pQueryConnections)
+        delete m_pQueryConnection;
 
     m_pQueryConnections.clear();
 }
@@ -261,15 +261,13 @@ bool Database::PExecuteLog(const char* format, ...)
     if (m_logSQL)
     {
         time_t curr;
-        tm local;
         time(&curr);                                        // get current time_t value
-        local = *(localtime(&curr));                        // dereference and assign
+        tm local = *(localtime(&curr));                        // dereference and assign
         char fName[128];
         sprintf(fName, "%04d-%02d-%02d_logSQL.sql", local.tm_year + 1900, local.tm_mon + 1, local.tm_mday);
 
-        FILE* log_file;
         std::string logsDir_fname = m_logsDir + fName;
-        log_file = fopen(logsDir_fname.c_str(), "a");
+        FILE* log_file = fopen(logsDir_fname.c_str(), "a");
         if (log_file)
         {
             fprintf(log_file, "%s;\n", szQuery);
@@ -397,7 +395,7 @@ bool Database::BeginTransaction()
     if (!m_currentTransaction.get())
         m_currentTransaction.reset(new SqlTransaction);
 
-    return !!m_currentTransaction.get();
+    return m_currentTransaction.get() != nullptr;
 }
 
 bool Database::CommitTransaction()
@@ -475,18 +473,18 @@ bool Database::CheckRequiredField(char const* table_name, char const* required_n
     {
         QueryFieldNames const& namesMap = result2->GetFieldNames();
         std::string reqName;
-        for (QueryFieldNames::const_iterator itr = namesMap.begin(); itr != namesMap.end(); ++itr)
+        for (const auto& itr : namesMap)
         {
-            if (itr->substr(0, 9) == "required_")
+            if (itr.substr(0, 9) == "required_")
             {
-                reqName = *itr;
+                reqName = itr;
                 break;
             }
         }
 
         delete result2;
 
-        std::string cur_sql_update_name = reqName.substr(strlen("required_"), reqName.npos);
+        std::string cur_sql_update_name = reqName.substr(strlen("required_"), std::string::npos);
 
         if (!reqName.empty())
         {
@@ -497,8 +495,22 @@ bool Database::CheckRequiredField(char const* table_name, char const* required_n
             sLog.outErrorDb("  [B] You need: --> `%s.sql`", req_sql_update_name);
             sLog.outErrorDb();
             sLog.outErrorDb("You must apply all updates after [A] to [B] to use mangos with this database.");
+#ifdef BUILD_PLAYERBOT
+            if (reqName.find("playerbot") != std::string::npos)
+            {
+                sLog.outErrorDb("These updates are included in the [sql/PlayerBot] folder.");
+                sLog.outErrorDb("Please read the [doc/README.Playerbot] file for instructions on updating.");
+            }
+            else
+            {
+                // Unmodded core code below
+                sLog.outErrorDb("These updates are included in the sql/updates folder.");
+                sLog.outErrorDb("Please read the included [README] in sql/updates for instructions on updating.");
+            }
+#else
             sLog.outErrorDb("These updates are included in the sql/updates folder.");
             sLog.outErrorDb("Please read the included [README] in sql/updates for instructions on updating.");
+#endif
         }
         else
         {
@@ -560,7 +572,7 @@ bool Database::ExecuteStmt(const SqlStatementID& id, SqlStmtParameters* params)
 bool Database::DirectExecuteStmt(const SqlStatementID& id, SqlStmtParameters* params)
 {
     MANGOS_ASSERT(params);
-    std::auto_ptr<SqlStmtParameters> p(params);
+    std::unique_ptr<SqlStmtParameters> p(params);
     // execute statement
     SqlConnection::Lock _guard(getAsyncConnection());
     return _guard->ExecuteStmt(id.ID(), *params);

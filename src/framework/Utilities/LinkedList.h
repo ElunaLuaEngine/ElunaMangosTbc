@@ -24,7 +24,7 @@
 //============================================
 class LinkedListHead;
 
-class MANGOS_DLL_SPEC LinkedListElement
+class LinkedListElement
 {
     private:
 
@@ -82,7 +82,7 @@ class MANGOS_DLL_SPEC LinkedListElement
 
 //============================================
 
-class MANGOS_DLL_SPEC LinkedListHead
+class LinkedListHead
 {
     private:
 
@@ -134,8 +134,7 @@ class MANGOS_DLL_SPEC LinkedListHead
 
                 return result;
             }
-            else
-                return iSize;
+            return iSize;
         }
 
         void incSize() { ++iSize; }

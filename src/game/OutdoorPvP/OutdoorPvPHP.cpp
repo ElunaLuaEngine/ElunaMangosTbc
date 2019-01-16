@@ -18,11 +18,11 @@
 
 #include "OutdoorPvPHP.h"
 #include "WorldPacket.h"
-#include "World.h"
-#include "Object.h"
-#include "Creature.h"
-#include "GameObject.h"
-#include "Player.h"
+#include "World/World.h"
+#include "Entities/Object.h"
+#include "Entities/Creature.h"
+#include "Entities/GameObject.h"
+#include "Entities/Player.h"
 
 OutdoorPvPHP::OutdoorPvPHP() : OutdoorPvP(),
     m_towersAlliance(0),
@@ -32,8 +32,8 @@ OutdoorPvPHP::OutdoorPvPHP() : OutdoorPvP(),
     m_towerWorldState[1] = WORLD_STATE_HP_STADIUM_NEUTRAL;
     m_towerWorldState[2] = WORLD_STATE_HP_BROKEN_HILL_NEUTRAL;
 
-    for (uint8 i = 0; i < MAX_HP_TOWERS; ++i)
-        m_towerOwner[i] = TEAM_NONE;
+    for (auto& i : m_towerOwner)
+        i = TEAM_NONE;
 }
 
 void OutdoorPvPHP::FillInitialWorldStates(WorldPacket& data, uint32& count)
@@ -43,8 +43,8 @@ void OutdoorPvPHP::FillInitialWorldStates(WorldPacket& data, uint32& count)
     FillInitialWorldState(data, count, WORLD_STATE_HP_TOWER_DISPLAY_A, WORLD_STATE_ADD);
     FillInitialWorldState(data, count, WORLD_STATE_HP_TOWER_DISPLAY_H, WORLD_STATE_ADD);
 
-    for (uint8 i = 0; i < MAX_HP_TOWERS; ++i)
-        FillInitialWorldState(data, count, m_towerWorldState[i], WORLD_STATE_ADD);
+    for (unsigned int i : m_towerWorldState)
+        FillInitialWorldState(data, count, i, WORLD_STATE_ADD);
 }
 
 void OutdoorPvPHP::SendRemoveWorldStates(Player* player)
@@ -52,8 +52,8 @@ void OutdoorPvPHP::SendRemoveWorldStates(Player* player)
     player->SendUpdateWorldState(WORLD_STATE_HP_TOWER_DISPLAY_A, WORLD_STATE_REMOVE);
     player->SendUpdateWorldState(WORLD_STATE_HP_TOWER_DISPLAY_H, WORLD_STATE_REMOVE);
 
-    for (uint8 i = 0; i < MAX_HP_TOWERS; ++i)
-        player->SendUpdateWorldState(m_towerWorldState[i], WORLD_STATE_REMOVE);
+    for (unsigned int i : m_towerWorldState)
+        player->SendUpdateWorldState(i, WORLD_STATE_REMOVE);
 }
 
 void OutdoorPvPHP::HandlePlayerEnterZone(Player* player, bool isMainZone)
@@ -132,12 +132,12 @@ void OutdoorPvPHP::HandleObjectiveComplete(uint32 eventId, const std::list<Playe
             return;
     }
 
-    for (std::list<Player*>::const_iterator itr = players.begin(); itr != players.end(); ++itr)
+    for (auto player : players)
     {
-        if ((*itr) && (*itr)->GetTeam() == team)
+        if (player && player->GetTeam() == team)
         {
-            (*itr)->KilledMonsterCredit(credit);
-            (*itr)->RewardHonor(nullptr, 1, HONOR_REWARD_HELLFIRE);
+            player->KilledMonsterCredit(credit);
+            player->RewardHonor(nullptr, 1, HONOR_REWARD_HELLFIRE);
         }
     }
 }
@@ -145,18 +145,15 @@ void OutdoorPvPHP::HandleObjectiveComplete(uint32 eventId, const std::list<Playe
 // Cast player spell on opponent kill
 void OutdoorPvPHP::HandlePlayerKillInsideArea(Player* player)
 {
-    for (uint8 i = 0; i < MAX_HP_TOWERS; ++i)
+    for (auto m_tower : m_towers)
     {
-        if (GameObject* capturePoint = player->GetMap()->GetGameObject(m_towers[i]))
+        if (GameObject* capturePoint = player->GetMap()->GetGameObject(m_tower))
         {
             // check capture point range
             GameObjectInfo const* info = capturePoint->GetGOInfo();
             if (info && player->IsWithinDistInMap(capturePoint, info->capturePoint.radius))
             {
-                // check capture point team
-                if (player->GetTeam() == m_towerOwner[i])
-                    player->CastSpell(player, player->GetTeam() == ALLIANCE ? SPELL_HELLFIRE_TOWER_TOKEN_ALLIANCE : SPELL_HELLFIRE_TOWER_TOKEN_HORDE, TRIGGERED_OLD_TRIGGERED);
-
+                player->CastSpell(player, player->GetTeam() == ALLIANCE ? SPELL_HELLFIRE_TOWER_TOKEN_ALLIANCE : SPELL_HELLFIRE_TOWER_TOKEN_HORDE, TRIGGERED_OLD_TRIGGERED);
                 return;
             }
         }
@@ -164,7 +161,7 @@ void OutdoorPvPHP::HandlePlayerKillInsideArea(Player* player)
 }
 
 // process the capture events
-bool OutdoorPvPHP::HandleEvent(uint32 eventId, GameObject* go)
+bool OutdoorPvPHP::HandleEvent(uint32 eventId, GameObject* go, Unit* invoker)
 {
     for (uint8 i = 0; i < MAX_HP_TOWERS; ++i)
     {

@@ -32,7 +32,7 @@
 
 namespace MaNGOS
 {
-    class MANGOS_DLL_SPEC Socket : public std::enable_shared_from_this<Socket>
+    class Socket : public std::enable_shared_from_this<Socket>
     {
         private:
             // buffer timeout period, in milliseconds.  higher values decrease responsiveness
@@ -64,6 +64,7 @@ namespace MaNGOS
             std::unique_ptr<PacketBuffer> m_secondaryOutBuffer;
 
             std::mutex m_mutex;
+            std::mutex m_closeMutex;
             boost::asio::deadline_timer m_outBufferFlushTimer;
 
             void StartAsyncRead();
@@ -101,6 +102,7 @@ namespace MaNGOS
             void ReadSkip(int length) { m_inBuffer->Read(nullptr, length); }
 
             void Write(const char *buffer, int length);
+            void Write(const char *header, int headerSize, const char* content, int contentSize);
 
             boost::asio::ip::tcp::socket &GetAsioSocket() { return m_socket; }
 

@@ -21,17 +21,16 @@
 */
 
 #include "Common.h"
-#include "World.h"
+#include "World/World.h"
 #include "WorldRunnable.h"
 #include "Timer.h"
-#include "MapManager.h"
-#include "LuaEngine.h"
+#include "Maps/MapManager.h"
 
 #include "Database/DatabaseEnv.h"
 
 #define WORLD_SLEEP_CONST 50
 
-#ifdef WIN32
+#ifdef _WIN32
 #include "ServiceWin32.h"
 extern int m_ServiceStatus;
 #endif
@@ -39,8 +38,6 @@ extern int m_ServiceStatus;
 /// Heartbeat for the World
 void WorldRunnable::run()
 {
-    sEluna->OnStartup();
-
     ///- Init new SQL thread for the world database
     WorldDatabase.ThreadStart();                            // let thread do safe mySQL requests (one connection call enough)
     sWorld.InitResultQueue();
@@ -73,19 +70,13 @@ void WorldRunnable::run()
         else
             prevSleepTime = 0;
 
-#ifdef WIN32
+#ifdef _WIN32
         if (m_ServiceStatus == 0) World::StopNow(SHUTDOWN_EXIT_CODE);
         while (m_ServiceStatus == 2) Sleep(1000);
 #endif
     }
 
-    sEluna->OnShutdown();
-
     sWorld.CleanupsBeforeStop();
-
-    // Eluna must be unloaded after Maps, since ~Map calls sEluna->OnDestroy,
-    //   and must be unloaded before the DB, since it can access the DB.
-    Eluna::Uninitialize();
 
     ///- End the database thread
     WorldDatabase.ThreadEnd();                              // free mySQL thread resources
