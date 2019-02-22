@@ -91,8 +91,7 @@ then
   echo "How many CPUs should be used for extracting mmaps? (1, 2, 4, 8)"
   read line
   echo
-  if [[ ($line == 1) || ($line == 2) || ($line == 4) || ($line == 8) ]]
-  then
+  if [ $line -eq 1 ] || [ $line -eq 2 ] || [ $line -eq 4 ] || [ $line -eq 8 ]; then
     NUM_CPU=$line
   else
     echo "Only numbers 1,2,4 and 8 are supported!"
@@ -163,7 +162,7 @@ fi
 if [ "$USE_VMAPS" = "1" ]
 then
   echo "`date`: Start extraction of vmaps..." | tee -a $LOG_FILE
-  ./vmapExtractor | tee -a $DETAIL_LOG_FILE
+  ./vmap_extractor | tee -a $DETAIL_LOG_FILE
   echo "`date`: Extracting of vmaps finished" | tee -a $LOG_FILE
   mkdir vmaps
   echo "`date`: Start assembling of vmaps..." | tee -a $LOG_FILE

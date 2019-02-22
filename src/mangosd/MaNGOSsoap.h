@@ -20,8 +20,8 @@
 #define _MANGOSSOAP_H
 
 #include "Common.h"
-#include "World.h"
-#include "AccountMgr.h"
+#include "World/World.h"
+#include "Accounts/AccountMgr.h"
 #include "Log.h"
 
 #include "soapH.h"
@@ -49,7 +49,7 @@ class SOAPThread
         static const AccountTypes MinLevel = AccountTypes::SEC_ADMINISTRATOR;
         static const int CommandOutputBufferSize = 256;
 
-        SOAPThread(const std::string &host, int port);
+        SOAPThread(const std::string& host, int port);
         ~SOAPThread();
 };
 

@@ -25,6 +25,7 @@ bin
 build
 tags
 TAGS
+win
 !.gitignore
 !.gitattributes
 !.travis.yml
@@ -42,6 +43,7 @@ autom4te.cache
 *.orig
 *.patch
 callgrind.out.*
+nbproject/
 
 #
 # Git stuff

@@ -18,13 +18,13 @@
 
 #include "OutdoorPvPNA.h"
 #include "WorldPacket.h"
-#include "World.h"
-#include "ObjectMgr.h"
-#include "Object.h"
-#include "Creature.h"
-#include "GameObject.h"
-#include "Player.h"
-#include "Language.h"
+#include "World/World.h"
+#include "Globals/ObjectMgr.h"
+#include "Entities/Object.h"
+#include "Entities/Creature.h"
+#include "Entities/GameObject.h"
+#include "Entities/Player.h"
+#include "Tools/Language.h"
 
 OutdoorPvPNA::OutdoorPvPNA() : OutdoorPvP(),
     m_zoneOwner(TEAM_NONE),
@@ -45,8 +45,8 @@ void OutdoorPvPNA::FillInitialWorldStates(WorldPacket& data, uint32& count)
         FillInitialWorldState(data, count, m_zoneWorldState, WORLD_STATE_ADD);
 
         // map states
-        for (uint8 i = 0; i < MAX_NA_ROOSTS; ++i)
-            FillInitialWorldState(data, count, m_roostWorldState[i], WORLD_STATE_ADD);
+        for (unsigned int i : m_roostWorldState)
+            FillInitialWorldState(data, count, i, WORLD_STATE_ADD);
     }
 
     FillInitialWorldState(data, count, m_zoneMapState, WORLD_STATE_ADD);
@@ -59,8 +59,8 @@ void OutdoorPvPNA::SendRemoveWorldStates(Player* player)
     player->SendUpdateWorldState(m_zoneWorldState, WORLD_STATE_REMOVE);
     player->SendUpdateWorldState(m_zoneMapState, WORLD_STATE_REMOVE);
 
-    for (uint8 i = 0; i < MAX_NA_ROOSTS; ++i)
-        player->SendUpdateWorldState(m_roostWorldState[i], WORLD_STATE_REMOVE);
+    for (unsigned int i : m_roostWorldState)
+        player->SendUpdateWorldState(i, WORLD_STATE_REMOVE);
 }
 
 void OutdoorPvPNA::HandlePlayerEnterZone(Player* player, bool isMainZone)
@@ -87,10 +87,10 @@ void OutdoorPvPNA::HandleObjectiveComplete(uint32 eventId, const std::list<Playe
 {
     if (eventId == EVENT_HALAA_BANNER_WIN_ALLIANCE || eventId == EVENT_HALAA_BANNER_WIN_HORDE)
     {
-        for (std::list<Player*>::const_iterator itr = players.begin(); itr != players.end(); ++itr)
+        for (auto player : players)
         {
-            if ((*itr) && (*itr)->GetTeam() == team)
-                (*itr)->KilledMonsterCredit(NPC_HALAA_COMBATANT);
+            if (player && player->GetTeam() == team)
+                player->KilledMonsterCredit(NPC_HALAA_COMBATANT);
         }
     }
 }
@@ -107,8 +107,6 @@ void OutdoorPvPNA::HandlePlayerKillInsideArea(Player* player)
             // check capture point team
             if (player->GetTeam() == m_zoneOwner)
                 player->CastSpell(player, player->GetTeam() == ALLIANCE ? SPELL_NAGRAND_TOKEN_ALLIANCE : SPELL_NAGRAND_TOKEN_HORDE, TRIGGERED_OLD_TRIGGERED);
-
-            return;
         }
     }
 }
@@ -289,12 +287,12 @@ void OutdoorPvPNA::UpdateWorldState(uint32 value)
 
 void OutdoorPvPNA::UpdateWyvernsWorldState(uint32 value)
 {
-    for (uint8 i = 0; i < MAX_NA_ROOSTS; ++i)
-        SendUpdateWorldState(m_roostWorldState[i], value);
+    for (unsigned int i : m_roostWorldState)
+        SendUpdateWorldState(i, value);
 }
 
 // process the capture events
-bool OutdoorPvPNA::HandleEvent(uint32 eventId, GameObject* go)
+bool OutdoorPvPNA::HandleEvent(uint32 eventId, GameObject* go, Unit* invoker)
 {
     // If we are not using the Halaa banner return
     if (go->GetEntry() != GO_HALAA_BANNER)
@@ -426,7 +424,7 @@ bool OutdoorPvPNA::HandleGameObjectUse(Player* player, GameObject* go)
                 // no need to iterate the other roosts
                 return false;
             }
-            else if (go->GetEntry() == nagrandRoostsBrokenAlliance[i])
+            if (go->GetEntry() == nagrandRoostsBrokenAlliance[i])
             {
                 // update roost states
                 UpdateWyvernsWorldState(WORLD_STATE_REMOVE);
@@ -440,11 +438,10 @@ bool OutdoorPvPNA::HandleGameObjectUse(Player* player, GameObject* go)
                 // no need to iterate the other roosts
                 return false;
             }
-            else if (go->GetEntry() == nagrandRoostsAlliance[i])
+            if (go->GetEntry() == nagrandRoostsAlliance[i])
             {
                 // mark player as pvp
-                player->UpdatePvP(true, true);
-                player->SetFlag(PLAYER_FLAGS, PLAYER_FLAGS_IN_PVP);
+                player->UpdatePvP(true);
 
                 // prevent despawning after go use
                 go->SetRespawnTime(0);
@@ -472,7 +469,7 @@ bool OutdoorPvPNA::HandleGameObjectUse(Player* player, GameObject* go)
                 // no need to iterate the other roosts
                 return false;
             }
-            else if (go->GetEntry() == nagrandRoostsBrokenHorde[i])
+            if (go->GetEntry() == nagrandRoostsBrokenHorde[i])
             {
                 // update roost states
                 UpdateWyvernsWorldState(WORLD_STATE_REMOVE);
@@ -486,11 +483,10 @@ bool OutdoorPvPNA::HandleGameObjectUse(Player* player, GameObject* go)
                 // no need to iterate the other roosts
                 return false;
             }
-            else if (go->GetEntry() == nagrandRoostsHorde[i])
+            if (go->GetEntry() == nagrandRoostsHorde[i])
             {
                 // mark player as pvp
-                player->UpdatePvP(true, true);
-                player->SetFlag(PLAYER_FLAGS, PLAYER_FLAGS_IN_PVP);
+                player->UpdatePvP(true);
 
                 // prevent despawning after go use
                 go->SetRespawnTime(0);
@@ -536,7 +532,7 @@ void OutdoorPvPNA::RespawnSoldier()
         {
             // summon a soldier replacement in the order they were set in the deque. delete the element after summon
             const HalaaSoldiersSpawns& location = m_deadSoldiers.front();
-            player->SummonCreature(m_zoneOwner == ALLIANCE ? NPC_ALLIANCE_HANAANI_GUARD : NPC_HORDE_HALAANI_GUARD, location.x, location.y, location.z, location.o, TEMPSUMMON_DEAD_DESPAWN, 0, true);
+            player->SummonCreature(m_zoneOwner == ALLIANCE ? NPC_ALLIANCE_HANAANI_GUARD : NPC_HORDE_HALAANI_GUARD, location.x, location.y, location.z, location.o, TEMPSPAWN_DEAD_DESPAWN, 0, true);
             m_deadSoldiers.pop();
             break;
         }

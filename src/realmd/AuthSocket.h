@@ -34,16 +34,20 @@
 
 #include <functional>
 
+#define HMAC_RES_SIZE 20
+
 class AuthSocket : public MaNGOS::Socket
 {
     public:
         const static int s_BYTE_SIZE = 32;
 
-        AuthSocket(boost::asio::io_service &service, std::function<void (Socket *)> closeHandler);
+        AuthSocket(boost::asio::io_service& service, std::function<void (Socket*)> closeHandler);
 
         void SendProof(Sha1Hash sha);
         void LoadRealmlist(ByteBuffer& pkt, uint32 acctid);
+        int32 generateToken(char const* b32key);
 
+        bool VerifyVersion(uint8 const* a, int32 aLength, uint8 const* versionProof, bool isReconnect);
         bool _HandleLogonChallenge();
         bool _HandleLogonProof();
         bool _HandleReconnectChallenge();
@@ -77,6 +81,8 @@ class AuthSocket : public MaNGOS::Socket
 
         std::string _login;
         std::string _safelogin;
+        std::string _token;
+        std::string m_os;
 
         // Since GetLocaleByName() is _NOT_ bijective, we have to store the locale as a string. Otherwise we can't differ
         // between enUS and enGB, which is important for the patch system

@@ -20,10 +20,10 @@
 #define __BATTLEGROUND_H
 
 #include "Common.h"
-#include "SharedDefines.h"
-#include "Map.h"
+#include "Globals/SharedDefines.h"
+#include "Maps/Map.h"
 #include "ByteBuffer.h"
-#include "ObjectGuid.h"
+#include "Entities/ObjectGuid.h"
 
 // magic event-numbers
 #define BG_EVENT_NONE 255
@@ -346,8 +346,7 @@ class BattleGround
         {
             if (team == ALLIANCE)
                 return m_InvitedAlliance;
-            else
-                return m_InvitedHorde;
+            return m_InvitedHorde;
         }
         bool HasFreeSlots() const;
         uint32 GetFreeSlotsForTeam(Team team) const;
@@ -395,17 +394,17 @@ class BattleGround
         /* Packet Transfer */
         // method that should fill worldpacket with actual world states (not yet implemented for all battlegrounds!)
         virtual void FillInitialWorldStates(WorldPacket& /*data*/, uint32& /*count*/) {}
-        void SendPacketToTeam(Team team, WorldPacket const& packet, Player* sender = nullptr, bool self = true) const;
+        void SendPacketToTeam(Team teamId, WorldPacket const& packet, Player* sender = nullptr, bool self = true) const;
         void SendPacketToAll(WorldPacket const& packet) const;
 
         template<class Do>
         void BroadcastWorker(Do& _do);
 
-        void PlaySoundToTeam(uint32 SoundID, Team team) const;
+        void PlaySoundToTeam(uint32 SoundID, Team teamId) const;
         void PlaySoundToAll(uint32 SoundID) const;
-        void CastSpellOnTeam(uint32 SpellID, Team team);
-        void RewardHonorToTeam(uint32 Honor, Team team);
-        void RewardReputationToTeam(uint32 faction_id, uint32 Reputation, Team team);
+        void CastSpellOnTeam(uint32 SpellID, Team teamId);
+        void RewardHonorToTeam(uint32 Honor, Team teamId);
+        void RewardReputationToTeam(uint32 faction_id, uint32 Reputation, Team teamId);
         void RewardMark(Player* plr, uint32 count);
         void SendRewardMarkByMail(Player* plr, uint32 mark, uint32 count) const;
         void RewardItem(Player* plr, uint32 item_id, uint32 count);
@@ -414,14 +413,14 @@ class BattleGround
         void UpdateWorldState(uint32 Field, uint32 Value);
         void UpdateWorldStateForPlayer(uint32 Field, uint32 Value, Player* Source) const;
         virtual void EndBattleGround(Team winner);
-    static void BlockMovement(Player* plr);
+        static void BlockMovement(Player* plr);
 
         void SendMessageToAll(int32 entry, ChatMsg type, Player const* source = nullptr);
         void SendYellToAll(int32 entry, uint32 language, ObjectGuid guid);
         void PSendMessageToAll(int32 entry, ChatMsg type, Player const* source, ...);
 
         // specialized version with 2 string id args
-        void SendMessage2ToAll(int32 entry, ChatMsg type, Player const* source, int32 strId1 = 0, int32 strId2 = 0);
+        void SendMessage2ToAll(int32 entry, ChatMsg type, Player const* source, int32 arg1 = 0, int32 arg2 = 0);
         void SendYell2ToAll(int32 entry, uint32 language, ObjectGuid guid, int32 arg1, int32 arg2);
 
         /* Raid Group */
@@ -456,7 +455,7 @@ class BattleGround
         virtual void HandleKillUnit(Creature* /*unit*/, Player* /*killer*/) {}
 
         // Process Capture event
-        virtual bool HandleEvent(uint32 /*eventId*/, GameObject* /*go*/) { return false; }
+        virtual bool HandleEvent(uint32 /*eventId*/, GameObject* /*go*/, Unit* /*invoker*/) { return false; }
 
         // Called when a gameobject is created
         virtual void HandleGameObjectCreate(GameObject* /*go*/) {}
@@ -510,9 +509,12 @@ class BattleGround
 
         // since arenas can be AvA or Hvh, we have to get the "temporary" team of a player
         Team GetPlayerTeam(ObjectGuid guid);
-        static Team GetOtherTeam(Team team) { return team ? ((team == ALLIANCE) ? HORDE : ALLIANCE) : TEAM_NONE; }
+        static Team GetOtherTeam(Team team) { return (team == ALLIANCE || team == HORDE) ? ((team == ALLIANCE) ? HORDE : ALLIANCE) : TEAM_NONE; }
         static PvpTeamIndex GetOtherTeamIndex(PvpTeamIndex teamIdx) { return teamIdx == TEAM_INDEX_ALLIANCE ? TEAM_INDEX_HORDE : TEAM_INDEX_ALLIANCE; }
         bool IsPlayerInBattleGround(ObjectGuid guid);
+
+        // Handle script condition fulfillment
+        virtual bool IsConditionFulfilled(Player const* /*source*/, uint32 /*conditionId*/, WorldObject const* /*conditionSource*/, uint32 /*conditionSourceType*/) { return false; }
 
         /* virtual score-array - get's used in bg-subclasses */
         int32 m_TeamScores[PVP_TEAM_COUNT];

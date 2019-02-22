@@ -21,18 +21,18 @@
 /// \file
 
 #include "Common.h"
-#include "Language.h"
+#include "Tools/Language.h"
 #include "Log.h"
-#include "World.h"
-#include "ObjectMgr.h"
-#include "WorldSession.h"
+#include "World/World.h"
+#include "Globals/ObjectMgr.h"
+#include "Server/WorldSession.h"
 #include "Config/Config.h"
 #include "Util.h"
-#include "AccountMgr.h"
+#include "Accounts/AccountMgr.h"
 #include "CliRunnable.h"
-#include "MapManager.h"
-#include "Player.h"
-#include "Chat.h"
+#include "Maps/MapManager.h"
+#include "Entities/Player.h"
+#include "Chat/Chat.h"
 
 void utf8print(const char* str)
 {
@@ -104,7 +104,7 @@ bool ChatHandler::HandleAccountDeleteCommand(char* args)
  * @param searchString the search string which either contains a player GUID (low part) or a part of the character-name
  * @return             returns false if there was a problem while selecting the characters (e.g. player name not normalizeable)
  */
-bool ChatHandler::GetDeletedCharacterInfoList(DeletedInfoList& foundList, std::string searchString)
+bool ChatHandler::GetDeletedCharacterInfoList(DeletedInfoList& foundList, std::string searchString) const
 {
     QueryResult* resultChar;
     if (!searchString.empty())
@@ -199,18 +199,18 @@ void ChatHandler::HandleCharacterDeletedListHelper(DeletedInfoList const& foundL
         SendSysMessage(LANG_CHARACTER_DELETED_LIST_BAR);
     }
 
-    for (DeletedInfoList::const_iterator itr = foundList.begin(); itr != foundList.end(); ++itr)
+    for (const auto& itr : foundList)
     {
-        std::string dateStr = TimeToTimestampStr(itr->deleteDate);
+        std::string dateStr = TimeToTimestampStr(itr.deleteDate);
 
         if (!m_session)
             PSendSysMessage(LANG_CHARACTER_DELETED_LIST_LINE_CONSOLE,
-                            itr->lowguid, itr->name.c_str(), itr->accountName.empty() ? "<nonexistent>" : itr->accountName.c_str(),
-                            itr->accountId, dateStr.c_str());
+                itr.lowguid, itr.name.c_str(), itr.accountName.empty() ? "<nonexistent>" : itr.accountName.c_str(),
+                itr.accountId, dateStr.c_str());
         else
             PSendSysMessage(LANG_CHARACTER_DELETED_LIST_LINE_CHAT,
-                            itr->lowguid, itr->name.c_str(), itr->accountName.empty() ? "<nonexistent>" : itr->accountName.c_str(),
-                            itr->accountId, dateStr.c_str());
+                itr.lowguid, itr.name.c_str(), itr.accountName.empty() ? "<nonexistent>" : itr.accountName.c_str(),
+                itr.accountId, dateStr.c_str());
     }
 
     if (!m_session)
@@ -321,8 +321,8 @@ bool ChatHandler::HandleCharacterDeletedRestoreCommand(char* args)
     if (newCharName.empty())
     {
         // Drop nonexistent account cases
-        for (DeletedInfoList::iterator itr = foundList.begin(); itr != foundList.end(); ++itr)
-            HandleCharacterDeletedRestoreHelper(*itr);
+        for (auto& itr : foundList)
+            HandleCharacterDeletedRestoreHelper(itr);
     }
     else if (foundList.size() == 1 && normalizePlayerName(newCharName))
     {
@@ -543,12 +543,13 @@ bool ChatHandler::HandleServerLogFilterCommand(char* args)
         return true;
     }
 
+    size_t _len = strlen(filtername);
     for (int i = 0; i < LOG_FILTER_COUNT; ++i)
     {
         if (!*logFilterData[i].name)
             continue;
 
-        if (!strncmp(filtername, logFilterData[i].name, strlen(filtername)))
+        if (!strncmp(filtername, logFilterData[i].name, _len))
         {
             sLog.SetLogFilter(LogFilters(1 << i), value);
             PSendSysMessage("  %-20s = %s", logFilterData[i].name, GetOnOffStr(value));
@@ -574,7 +575,7 @@ bool ChatHandler::HandleServerLogLevelCommand(char* args)
 
 /// @}
 
-#ifdef linux
+#ifdef __unix__
 // Non-blocking keypress detector, when return pressed, return 1, else always return 0
 int kb_hit_return()
 {
@@ -607,16 +608,27 @@ void CliRunnable::run()
     // later it will be printed after command queue updates
     printf("mangos>");
 
+#ifdef __unix__
+    //Set stdin IO to nonblocking - prevent Server from hanging in shutdown process till enter is pressed
+    int fd = fileno(stdin);
+    int flags = fcntl(fd, F_GETFL, 0);
+    flags |= O_NONBLOCK;
+    fcntl(fd, F_SETFL, flags);
+#endif
+
     ///- As long as the World is running (no World::m_stopEvent), get the command line and handle it
     while (!World::IsStopped())
     {
         fflush(stdout);
-#ifdef linux
+#ifdef __unix__
         while (!kb_hit_return() && !World::IsStopped())
+        {
             // With this, we limit CLI to 10commands/second
-            usleep(100);
-        if (World::IsStopped())
-            break;
+            std::this_thread::sleep_for(std::chrono::nanoseconds(100000));
+            // Check for world stoppage after each sleep interval
+            if (World::IsStopped())
+                break;
+        }
 #endif
         char* command_str = fgets(commandbuf, sizeof(commandbuf), stdin);
         if (command_str != nullptr)

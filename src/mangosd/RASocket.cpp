@@ -24,21 +24,22 @@
 #include "Database/DatabaseEnv.h"
 #include "Log.h"
 #include "RASocket.h"
-#include "World.h"
+#include "World/World.h"
 #include "Config/Config.h"
 #include "Util.h"
-#include "AccountMgr.h"
-#include "Language.h"
-#include "ObjectMgr.h"
+#include "Accounts/AccountMgr.h"
+#include "Tools/Language.h"
+#include "Globals/ObjectMgr.h"
 #include "Policies/Lock.h"
 
+#include <utility>
 #include <vector>
 #include <string>
 
 /// RASocket constructor
-RASocket::RASocket(boost::asio::io_service &service, std::function<void(Socket *)> closeHandler) :
-    m_secure(sConfig.GetBoolDefault("RA.Secure", true)), MaNGOS::Socket(service, closeHandler),
-    m_authLevel(AuthLevel::None), m_accountId(0), m_accountLevel(AccountTypes::SEC_PLAYER)
+RASocket::RASocket(boost::asio::io_service& service, std::function<void(Socket*)> closeHandler) :
+    MaNGOS::Socket(service, std::move(closeHandler)), m_secure(sConfig.GetBoolDefault("RA.Secure", true)),
+    m_authLevel(AuthLevel::None), m_accountLevel(AccountTypes::SEC_PLAYER), m_accountId(0)
 {
     if (sConfig.IsSet("RA.Stricted"))
     {
@@ -188,8 +189,8 @@ bool RASocket::HandleInput()
                     return false;
 
                 sWorld.QueueCliCommand(new CliCommandHolder(m_accountId, m_accountLevel, m_input.c_str(),
-                    [this] (const char *buffer) { this->Send(buffer); },
-                    [this] (bool) { this->Send("mangos>"); }));
+                [this](const char* buffer) { this->Send(buffer); },
+                [this](bool) { this->Send("mangos>"); }));
             }
             else
                 Send("mangos>");
@@ -200,14 +201,14 @@ bool RASocket::HandleInput()
         default:
             return false;
             ///</ul>
-    };
+    }
 
     m_input.clear();
 
     return true;
 }
 
-void RASocket::Send(const std::string &message)
+void RASocket::Send(const std::string& message)
 {
     Write(message.c_str(), message.length());
 }

@@ -18,13 +18,13 @@
 
 #include "OutdoorPvPSI.h"
 #include "WorldPacket.h"
-#include "World.h"
-#include "ObjectMgr.h"
-#include "Object.h"
-#include "Creature.h"
-#include "GameObject.h"
-#include "Player.h"
-#include "Language.h"
+#include "World/World.h"
+#include "Globals/ObjectMgr.h"
+#include "Entities/Object.h"
+#include "Entities/Creature.h"
+#include "Entities/GameObject.h"
+#include "Entities/Player.h"
+#include "Tools/Language.h"
 
 OutdoorPvPSI::OutdoorPvPSI() : OutdoorPvP(),
     m_resourcesAlliance(0),
@@ -141,7 +141,7 @@ bool OutdoorPvPSI::HandleAreaTrigger(Player* player, uint32 triggerId)
     // reward the player
     player->CastSpell(player, SPELL_TRACES_OF_SILITHYST, TRIGGERED_OLD_TRIGGERED);
     player->RewardHonor(nullptr, 1, HONOR_REWARD_SILITHYST);
-    player->GetReputationMgr().ModifyReputation(sFactionStore.LookupEntry(FACTION_CENARION_CIRCLE), REPUTATION_REWARD_SILITHYST);
+    player->GetReputationMgr().ModifyReputation(sFactionStore.LookupEntry<FactionEntry>(FACTION_CENARION_CIRCLE), REPUTATION_REWARD_SILITHYST);
 
     return true;
 }
@@ -193,8 +193,7 @@ bool OutdoorPvPSI::HandleGameObjectUse(Player* player, GameObject* go)
     {
         // Also mark player with pvp on
         player->CastSpell(player, SPELL_SILITHYST, TRIGGERED_OLD_TRIGGERED);
-        player->UpdatePvP(true, true);
-        player->SetFlag(PLAYER_FLAGS, PLAYER_FLAGS_IN_PVP);
+        player->UpdatePvP(true);
         // Despawn the gameobject (workaround)
         go->SetLootState(GO_JUST_DEACTIVATED);
         return true;

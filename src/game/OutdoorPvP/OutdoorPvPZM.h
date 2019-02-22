@@ -21,7 +21,8 @@
 
 #include "Common.h"
 #include "OutdoorPvP.h"
-#include "Language.h"
+#include "Tools/Language.h"
+#include "World/WorldStateDefines.h"
 
 enum
 {
@@ -72,33 +73,10 @@ enum
     EVENT_WEST_BEACON_NEUTRAL_ALLIANCE      = 11808,
     EVENT_WEST_BEACON_NEUTRAL_HORDE         = 11809,
 
-    // world states
-    WORLD_STATE_ZM_BEACON_EAST_UI_ALLIANCE  = 2558,
-    WORLD_STATE_ZM_BEACON_EAST_UI_HORDE     = 2559,
-    WORLD_STATE_ZM_BEACON_EAST_UI_NEUTRAL   = 2560,
-
-    WORLD_STATE_ZM_BEACON_WEST_UI_ALLIANCE  = 2555,
-    WORLD_STATE_ZM_BEACON_WEST_UI_HORDE     = 2556,
-    WORLD_STATE_ZM_BEACON_WEST_UI_NEUTRAL   = 2557,
-
-    WORLD_STATE_ZM_BEACON_EAST_ALLIANCE     = 2650,
-    WORLD_STATE_ZM_BEACON_EAST_HORDE        = 2651,
-    WORLD_STATE_ZM_BEACON_EAST_NEUTRAL      = 2652,
-
-    WORLD_STATE_ZM_BEACON_WEST_ALLIANCE     = 2644,
-    WORLD_STATE_ZM_BEACON_WEST_HORDE        = 2645,
-    WORLD_STATE_ZM_BEACON_WEST_NEUTRAL      = 2646,
-
-    WORLD_STATE_ZM_GRAVEYARD_ALLIANCE       = 2648,
-    WORLD_STATE_ZM_GRAVEYARD_HORDE          = 2649,
-    WORLD_STATE_ZM_GRAVEYARD_NEUTRAL        = 2647,
-
-    WORLD_STATE_ZM_FLAG_READY_HORDE         = 2658,
-    WORLD_STATE_ZM_FLAG_NOT_READY_HORDE     = 2657,
-    WORLD_STATE_ZM_FLAG_READY_ALLIANCE      = 2655,
-    WORLD_STATE_ZM_FLAG_NOT_READY_ALLIANCE  = 2656
-
-            //WORLD_STATE_ZM_UNK                    = 2653
+    // condition entries (hardcoded)
+    // used to check the gossip options in DB for the flag provider NPC
+    OPVP_COND_ZM_ALLY_SCOUT_FLAG_READY      = 0,
+    OPVP_COND_ZM_HORDE_SCOUT_FLAG_READY     = 1,
 };
 
 struct ZangarmarshTowerEvent
@@ -138,14 +116,16 @@ class OutdoorPvPZM : public OutdoorPvP
         void FillInitialWorldStates(WorldPacket& data, uint32& count) override;
         void SendRemoveWorldStates(Player* player) override;
 
-        bool HandleEvent(uint32 eventId, GameObject* go) override;
+        bool HandleEvent(uint32 eventId, GameObject* go, Unit* invoker) override;
 
         void HandleCreatureCreate(Creature* creature) override;
         void HandleGameObjectCreate(GameObject* go) override;
 
         void HandlePlayerKillInsideArea(Player* player) override;
         bool HandleGameObjectUse(Player* player, GameObject* go) override;
-        //bool HandleDropFlag(Player* player, uint32 spellId) override;
+
+        bool IsConditionFulfilled(Player const* source, uint32 conditionId, WorldObject const* conditionSource, uint32 conditionSourceType) override;
+        void HandleConditionStateChange(uint32 conditionId, bool state) override;
 
     private:
         // process capture events
@@ -168,6 +148,9 @@ class OutdoorPvPZM : public OutdoorPvP
         uint32 m_scoutWorldStateHorde;
         uint8 m_towersAlliance;
         uint8 m_towersHorde;
+
+        bool m_flagReady[PVP_TEAM_COUNT];
+        bool m_playerCarryingFlag[PVP_TEAM_COUNT];
 
         ObjectGuid m_towerBanners[MAX_ZM_TOWERS];
         ObjectGuid m_graveyardBannerAlliance;

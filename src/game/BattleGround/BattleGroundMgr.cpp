@@ -17,8 +17,8 @@
  */
 
 #include "Common.h"
-#include "SharedDefines.h"
-#include "Player.h"
+#include "Globals/SharedDefines.h"
+#include "Entities/Player.h"
 #include "BattleGroundMgr.h"
 #include "BattleGroundAV.h"
 #include "BattleGroundAB.h"
@@ -28,17 +28,17 @@
 #include "BattleGroundBE.h"
 #include "BattleGroundAA.h"
 #include "BattleGroundRL.h"
-#include "MapManager.h"
-#include "Map.h"
-#include "ObjectMgr.h"
+#include "Maps/MapManager.h"
+#include "Maps/Map.h"
+#include "Globals/ObjectMgr.h"
 #include "ProgressBar.h"
-#include "Chat.h"
-#include "ArenaTeam.h"
-#include "World.h"
+#include "Chat/Chat.h"
+#include "Arena/ArenaTeam.h"
+#include "World/World.h"
 #include "WorldPacket.h"
-#include "GameEventMgr.h"
+#include "GameEvents/GameEventMgr.h"
+#include "Mails/Mail.h"
 #include "LuaEngine.h"
-
 #include "Policies/Singleton.h"
 
 INSTANTIATE_SINGLETON_1(BattleGroundMgr);
@@ -64,13 +64,13 @@ BattleGroundQueue::BattleGroundQueue()
 BattleGroundQueue::~BattleGroundQueue()
 {
     m_QueuedPlayers.clear();
-    for (uint8 i = 0; i < MAX_BATTLEGROUND_BRACKETS; ++i)
+    for (auto& m_QueuedGroup : m_QueuedGroups)
     {
         for (uint8 j = 0; j < BG_QUEUE_GROUP_TYPES_COUNT; ++j)
         {
-            for (GroupsQueueType::iterator itr = m_QueuedGroups[i][j].begin(); itr != m_QueuedGroups[i][j].end(); ++itr)
-                delete(*itr);
-            m_QueuedGroups[i][j].clear();
+            for (GroupsQueueType::iterator itr = m_QueuedGroup[j].begin(); itr != m_QueuedGroup[j].end(); ++itr)
+                delete (*itr);
+            m_QueuedGroup[j].clear();
         }
     }
 }
@@ -133,9 +133,7 @@ bool BattleGroundQueue::SelectionPool::AddGroup(GroupQueueInfo* ginfo, uint32 de
         PlayerCount += ginfo->Players.size();
         return true;
     }
-    if (PlayerCount < desiredCount)
-        return true;
-    return false;
+    return PlayerCount < desiredCount;
 }
 
 /*********************************************************/
@@ -288,9 +286,8 @@ uint32 BattleGroundQueue::GetAverageQueueWaitTime(GroupQueueInfo* ginfo, BattleG
     // check if there is enought values(we always add values > 0)
     if (m_WaitTimes[team_index][bracket_id][COUNT_OF_PLAYERS_TO_AVERAGE_WAIT_TIME - 1])
         return (m_SumOfWaitTimes[team_index][bracket_id] / COUNT_OF_PLAYERS_TO_AVERAGE_WAIT_TIME);
-    else
         // if there aren't enough values return 0 - not available
-        return 0;
+    return 0;
 }
 
 // remove player from queue and from group info, if group info is empty then remove it too
@@ -300,10 +297,9 @@ void BattleGroundQueue::RemovePlayer(ObjectGuid guid, bool decreaseInvitedCount)
     // std::lock_guard<std::recursive_mutex> guard(m_Lock);
 
     int32 bracket_id = -1;                                  // signed for proper for-loop finish
-    QueuedPlayersMap::iterator itr;
 
     // remove player from map, if he's there
-    itr = m_QueuedPlayers.find(guid);
+    QueuedPlayersMap::iterator itr = m_QueuedPlayers.find(guid);
     if (itr == m_QueuedPlayers.end())
     {
         sLog.outError("BattleGroundQueue: couldn't find for remove: %s", guid.GetString().c_str());
@@ -311,7 +307,7 @@ void BattleGroundQueue::RemovePlayer(ObjectGuid guid, bool decreaseInvitedCount)
     }
 
     GroupQueueInfo* group = itr->second.GroupInfo;
-    GroupsQueueType::iterator group_itr, group_itr_tmp;
+    GroupsQueueType::iterator group_itr;
     // mostly people with the highest levels are in battlegrounds, thats why
     // we count from MAX_BATTLEGROUND_QUEUES - 1 to 0
     // variable index removes useless searching in other team's queue
@@ -323,7 +319,7 @@ void BattleGroundQueue::RemovePlayer(ObjectGuid guid, bool decreaseInvitedCount)
         // they leave groupinfo so we can't use its players size to find out index
         for (uint8 j = index; j < BG_QUEUE_GROUP_TYPES_COUNT; j += BG_QUEUE_NORMAL_ALLIANCE)
         {
-            for (group_itr_tmp = m_QueuedGroups[bracket_id_tmp][j].begin(); group_itr_tmp != m_QueuedGroups[bracket_id_tmp][j].end(); ++group_itr_tmp)
+            for (GroupsQueueType::iterator group_itr_tmp = m_QueuedGroups[bracket_id_tmp][j].begin(); group_itr_tmp != m_QueuedGroups[bracket_id_tmp][j].end(); ++group_itr_tmp)
             {
                 if ((*group_itr_tmp) == group)
                 {
@@ -437,7 +433,7 @@ bool BattleGroundQueue::GetPlayerGroupInfoData(ObjectGuid guid, GroupQueueInfo* 
 bool BattleGroundQueue::InviteGroupToBG(GroupQueueInfo* ginfo, BattleGround* bg, Team side)
 {
     // set side if needed
-    if (side)
+    if (side == ALLIANCE || side == HORDE)
         ginfo->GroupTeam = side;
 
     if (!ginfo->IsInvitedToBGInstanceGUID)
@@ -475,10 +471,10 @@ bool BattleGroundQueue::InviteGroupToBG(GroupQueueInfo* ginfo, BattleGround* bg,
 
             // create remind invite events
             BGQueueInviteEvent* inviteEvent = new BGQueueInviteEvent(plr->GetObjectGuid(), ginfo->IsInvitedToBGInstanceGUID, bgTypeId, ginfo->arenaType, ginfo->RemoveInviteTime);
-            plr->m_Events.AddEvent(inviteEvent, plr->m_Events.CalculateTime(INVITATION_REMIND_TIME));
+            plr->m_events.AddEvent(inviteEvent, plr->m_events.CalculateTime(INVITATION_REMIND_TIME));
             // create automatic remove events
             BGQueueRemoveEvent* removeEvent = new BGQueueRemoveEvent(plr->GetObjectGuid(), ginfo->IsInvitedToBGInstanceGUID, bgTypeId, bgQueueTypeId, ginfo->RemoveInviteTime);
-            plr->m_Events.AddEvent(removeEvent, plr->m_Events.CalculateTime(INVITE_ACCEPT_WAIT_TIME));
+            plr->m_events.AddEvent(removeEvent, plr->m_events.CalculateTime(INVITE_ACCEPT_WAIT_TIME));
 
             WorldPacket data;
 
@@ -601,10 +597,9 @@ bool BattleGroundQueue::CheckPremadeMatch(BattleGroundBracketId bracket_id, uint
             m_SelectionPools[TEAM_INDEX_HORDE].AddGroup((*horde_group), MaxPlayersPerTeam);
             // add groups/players from normal queue to size of bigger group
             uint32 maxPlayers = std::max(m_SelectionPools[TEAM_INDEX_ALLIANCE].GetPlayerCount(), m_SelectionPools[TEAM_INDEX_HORDE].GetPlayerCount());
-            GroupsQueueType::const_iterator itr;
             for (uint8 i = 0; i < PVP_TEAM_COUNT; ++i)
             {
-                for (itr = m_QueuedGroups[bracket_id][BG_QUEUE_NORMAL_ALLIANCE + i].begin(); itr != m_QueuedGroups[bracket_id][BG_QUEUE_NORMAL_ALLIANCE + i].end(); ++itr)
+                for (GroupsQueueType::const_iterator itr = m_QueuedGroups[bracket_id][BG_QUEUE_NORMAL_ALLIANCE + i].begin(); itr != m_QueuedGroups[bracket_id][BG_QUEUE_NORMAL_ALLIANCE + i].end(); ++itr)
                 {
                     // if itr can join BG and player count is less that maxPlayers, then add group to selectionpool
                     if (!(*itr)->IsInvitedToBGInstanceGUID && !m_SelectionPools[i].AddGroup((*itr), maxPlayers))
@@ -756,8 +751,8 @@ void BattleGroundQueue::Update(BattleGroundTypeId bgTypeId, BattleGroundBracketI
 
     // battleground with free slot for player should be always in the beggining of the queue
     // maybe it would be better to create bgfreeslotqueue for each bracket_id
-    BGFreeSlotQueueType::iterator itr, next;
-    for (itr = sBattleGroundMgr.BGFreeSlotQueue[bgTypeId].begin(); itr != sBattleGroundMgr.BGFreeSlotQueue[bgTypeId].end(); itr = next)
+    BGFreeSlotQueueType::iterator next;
+    for (BGFreeSlotQueueType::iterator itr = sBattleGroundMgr.BGFreeSlotQueue[bgTypeId].begin(); itr != sBattleGroundMgr.BGFreeSlotQueue[bgTypeId].end(); itr = next)
     {
         next = itr;
         ++next;
@@ -1154,13 +1149,13 @@ void BattleGroundMgr::Update(uint32 diff)
             // release lock
         }
 
-        for (uint8 i = 0; i < scheduled.size(); ++i)
+        for (unsigned long long i : scheduled)
         {
-            uint32 arenaRating = scheduled[i] >> 32;
-            ArenaType arenaType = ArenaType(scheduled[i] >> 24 & 255);
-            BattleGroundQueueTypeId bgQueueTypeId = BattleGroundQueueTypeId(scheduled[i] >> 16 & 255);
-            BattleGroundTypeId bgTypeId = BattleGroundTypeId((scheduled[i] >> 8) & 255);
-            BattleGroundBracketId bracket_id = BattleGroundBracketId(scheduled[i] & 255);
+            uint32 arenaRating = i >> 32;
+            ArenaType arenaType = ArenaType(i >> 24 & 255);
+            BattleGroundQueueTypeId bgQueueTypeId = BattleGroundQueueTypeId(i >> 16 & 255);
+            BattleGroundTypeId bgTypeId = BattleGroundTypeId((i >> 8) & 255);
+            BattleGroundBracketId bracket_id = BattleGroundBracketId(i & 255);
             m_BattleGroundQueues[bgQueueTypeId].Update(bgTypeId, bracket_id, arenaType, arenaRating > 0, arenaRating);
         }
     }
@@ -1259,7 +1254,7 @@ void BattleGroundMgr::BuildPvpLogDataPacket(WorldPacket& data, BattleGround* bg)
         data << uint32(at1 ? uint32(at1->GetRating() + bg->m_ArenaTeamRatingChanges[1]) : 0);
         data << uint32(at2 ? uint32(at2->GetRating()) : 0);
         data << uint32(at2 ? uint32(at2->GetRating() + bg->m_ArenaTeamRatingChanges[0]) : 0);
-        
+
         data << (at1 ? at1->GetName() : "Unknown");
         data << (at2 ? at2->GetName() : "Unknown");
     }
@@ -1289,7 +1284,7 @@ void BattleGroundMgr::BuildPvpLogDataPacket(WorldPacket& data, BattleGround* bg)
         else
         {
             Team team = bg->GetPlayerTeam(itr->first);
-            if (!team)
+            if (team != ALLIANCE && team != HORDE)
                 if (Player* player = sObjectMgr.GetPlayer(itr->first))
                     team = player->GetTeam();
 
@@ -1389,10 +1384,10 @@ BattleGround* BattleGroundMgr::GetBattleGroundThroughClientInstance(uint32 insta
     if (bg->isArena())
         return GetBattleGround(instanceId, bgTypeId);
 
-    for (BattleGroundSet::iterator itr = m_BattleGrounds[bgTypeId].begin(); itr != m_BattleGrounds[bgTypeId].end(); ++itr)
+    for (auto& itr : m_BattleGrounds[bgTypeId])
     {
-        if (itr->second->GetClientInstanceID() == instanceId)
-            return itr->second;
+        if (itr.second->GetClientInstanceID() == instanceId)
+            return itr.second;
     }
     return nullptr;
 }
@@ -1553,7 +1548,6 @@ uint32 BattleGroundMgr::CreateBattleGround(BattleGroundTypeId bgTypeId, bool IsA
     AddBattleGround(bg->GetInstanceID(), bg->GetTypeID(), bg);
 
     sEluna->OnBGCreate(bg, bgTypeId, bg->GetInstanceID());
-
     // return some not-null value, bgTypeId is good enough for me
     return bgTypeId;
 }
@@ -1679,12 +1673,19 @@ void BattleGroundMgr::InitAutomaticArenaPointDistribution()
 {
     if (sWorld.getConfig(CONFIG_BOOL_ARENA_AUTO_DISTRIBUTE_POINTS))
     {
-        DEBUG_LOG("Initializing Automatic Arena Point Distribution");
         QueryResult* result = CharacterDatabase.Query("SELECT NextArenaPointDistributionTime FROM saved_variables");
-        if (!result)
+        if (!result) // if not set generate time for next wednesday
         {
-            DEBUG_LOG("Battleground: Next arena point distribution time not found in SavedVariables, reseting it now.");
-            m_NextAutoDistributionTime = time_t(sWorld.GetGameTime() + BATTLEGROUND_ARENA_POINT_DISTRIBUTION_DAY * sWorld.getConfig(CONFIG_UINT32_ARENA_AUTO_DISTRIBUTE_INTERVAL_DAYS));
+            // generate time by config on first server launch
+            time_t curTime = time(nullptr);
+            tm localTm = *localtime(&curTime);
+            localTm.tm_hour = sWorld.getConfig(CONFIG_UINT32_QUEST_DAILY_RESET_HOUR);
+            localTm.tm_min = 0;
+            localTm.tm_sec = 0;
+            localTm.tm_mday += ((7 - localTm.tm_wday + sWorld.getConfig(CONFIG_UINT32_ARENA_FIRST_RESET_DAY)) % 7);
+            localTm.tm_isdst = -1;
+            m_NextAutoDistributionTime = mktime(&localTm);
+
             CharacterDatabase.PExecute("INSERT INTO saved_variables (NextArenaPointDistributionTime) VALUES ('" UI64FMTD "')", uint64(m_NextAutoDistributionTime));
         }
         else
@@ -1692,16 +1693,17 @@ void BattleGroundMgr::InitAutomaticArenaPointDistribution()
             m_NextAutoDistributionTime = time_t((*result)[0].GetUInt64());
             delete result;
         }
-        DEBUG_LOG("Automatic Arena Point Distribution initialized.");
+
+        //uint32 dayofweek = sWorld.getConfig(CONFIG_UINT32_ARENA_AUTO_DISTRIBUTE_INTERVAL_DAYS);
     }
 }
 
 void BattleGroundMgr::DistributeArenaPoints() const
 {
     // used to distribute arena points based on last week's stats
-    sWorld.SendWorldText(LANG_DIST_ARENA_POINTS_START);
+    sWorld.SendWorldTextToAboveSecurity(SEC_GAMEMASTER, LANG_DIST_ARENA_POINTS_START);
 
-    sWorld.SendWorldText(LANG_DIST_ARENA_POINTS_ONLINE_START);
+    sWorld.SendWorldTextToAboveSecurity(SEC_GAMEMASTER, LANG_DIST_ARENA_POINTS_ONLINE_START);
 
     // temporary structure for storing maximum points to add values for all players
     std::map<uint32, uint32> PlayerPoints;
@@ -1716,20 +1718,20 @@ void BattleGroundMgr::DistributeArenaPoints() const
     }
 
     // cycle that gives points to all players
-    for (std::map<uint32, uint32>::iterator plr_itr = PlayerPoints.begin(); plr_itr != PlayerPoints.end(); ++plr_itr)
+    for (auto& PlayerPoint : PlayerPoints)
     {
         // update to database
-        CharacterDatabase.PExecute("UPDATE characters SET arenaPoints = arenaPoints + '%u' WHERE guid = '%u'", plr_itr->second, plr_itr->first);
+        CharacterDatabase.PExecute("UPDATE characters SET arenaPoints = arenaPoints + '%u' WHERE guid = '%u'", PlayerPoint.second, PlayerPoint.first);
         // add points if player is online
-        if (Player* pl = sObjectMgr.GetPlayer(ObjectGuid(HIGHGUID_PLAYER, plr_itr->first)))
-            pl->ModifyArenaPoints(plr_itr->second);
+        if (Player* pl = sObjectMgr.GetPlayer(ObjectGuid(HIGHGUID_PLAYER, PlayerPoint.first)))
+            pl->ModifyArenaPoints(PlayerPoint.second);
     }
 
     PlayerPoints.clear();
 
-    sWorld.SendWorldText(LANG_DIST_ARENA_POINTS_ONLINE_END);
+    sWorld.SendWorldTextToAboveSecurity(SEC_GAMEMASTER, LANG_DIST_ARENA_POINTS_ONLINE_END);
 
-    sWorld.SendWorldText(LANG_DIST_ARENA_POINTS_TEAM_START);
+    sWorld.SendWorldTextToAboveSecurity(SEC_GAMEMASTER, LANG_DIST_ARENA_POINTS_TEAM_START);
     for (ObjectMgr::ArenaTeamMap::iterator titr = sObjectMgr.GetArenaTeamMapBegin(); titr != sObjectMgr.GetArenaTeamMapEnd(); ++titr)
     {
         if (ArenaTeam* at = titr->second)
@@ -1740,9 +1742,205 @@ void BattleGroundMgr::DistributeArenaPoints() const
         }
     }
 
-    sWorld.SendWorldText(LANG_DIST_ARENA_POINTS_TEAM_END);
+    sWorld.SendWorldTextToAboveSecurity(SEC_GAMEMASTER, LANG_DIST_ARENA_POINTS_TEAM_END);
 
-    sWorld.SendWorldText(LANG_DIST_ARENA_POINTS_END);
+    sWorld.SendWorldTextToAboveSecurity(SEC_GAMEMASTER, LANG_DIST_ARENA_POINTS_END);
+}
+
+void CheckPlayersAndAddToWinners(ArenaTeam* team, std::map<ObjectGuid, uint32>& playerRanks, uint32 rank)
+{
+    for (ArenaTeamMember& member : team->GetMembers())
+    {
+        // Has personal rating within 100 of team rating and played at least 20% of games of given team
+        if (std::abs(int32(member.personal_rating) - int32(team->GetStats().rating)) <= 100 && member.games_season > (team->GetStats().games_season * 20 / 100))
+        {
+            auto itr = playerRanks.find(member.guid);
+            if (itr != playerRanks.end())
+            {
+                if (itr->second > rank)
+                    itr->second = rank;
+            }
+            else
+                playerRanks.emplace(member.guid, rank);
+        }
+    }
+}
+
+void SetTitleValues(uint32& first, uint32& second, uint32 titleId)
+{
+    switch (titleId)
+    {
+        case 42: first |= 0x20000000; break;
+        case 43: first |= 0x40000000; break;
+        case 44: first |= 0x80000000; break;
+        case 45: second |= 0x00000001; break;
+        case 62: second |= 0x00000020; break;
+        case 71: second |= 0x00000100; break;
+        default: break; // cant award gladiator
+    }
+}
+
+void BattleGroundMgr::RewardArenaSeason(uint32 seasonId)
+{
+    sWorld.SendWorldTextToAboveSecurity(SEC_GAMEMASTER, LANG_DIST_ARENA_REWARDS_START, seasonId);
+
+    std::vector<ArenaTeam*> sortedTeams[3];
+    for (ObjectMgr::ArenaTeamMap::iterator titr = sObjectMgr.GetArenaTeamMapBegin(); titr != sObjectMgr.GetArenaTeamMapEnd(); ++titr)
+        if (ArenaTeam* at = titr->second)
+        {
+            // team needs minimum of 10 games played during season to be part of ladders for rewards
+            // this number is unproven - in later expansions it may be 50 games min
+            if (at->GetStats().games_season >= 10)
+            {
+                switch (at->GetType())
+                {
+                    case ARENA_TYPE_2v2:
+                        sortedTeams[0].push_back(at);
+                        break;
+                    case ARENA_TYPE_3v3:
+                        sortedTeams[1].push_back(at);
+                        break;
+                    case ARENA_TYPE_5v5:
+                        sortedTeams[2].push_back(at);
+                        break;
+                }
+            }
+        }
+
+    // first sort teams based on rating
+    for (uint32 i = 0; i < 3; ++i)
+        std::sort(sortedTeams[i].begin(), sortedTeams[i].end(), [](ArenaTeam* first, ArenaTeam* second)
+        {
+            return first->GetStats().rating > second->GetStats().rating;
+        });
+
+    uint32 gladiatorCount[3], duelistCount[3], rivalCount[3], challengerCount[3];
+    for (uint32 i = 0; i < 3; ++i)
+    {
+        gladiatorCount[i]       = std::max(uint32(sortedTeams[i].size()) * 5 / 1000, uint32(1));
+        duelistCount[i]         = std::max(uint32(sortedTeams[i].size()) * 3 / 100, uint32(1));
+        rivalCount[i]           = std::max(uint32(sortedTeams[i].size()) * 10 / 100, uint32(1));
+        challengerCount[i]      = std::max(uint32(sortedTeams[i].size()) * 35 / 100, uint32(1));
+    }
+
+    std::map<ObjectGuid, uint32> playerRanks;
+    for (uint32 i = 0; i < 3; ++i)
+    {
+        for (uint32 k = 0; k < sortedTeams[i].size(); ++k)
+        {
+            ArenaTeam* team = sortedTeams[i][k];
+            if (k < 1)
+                CheckPlayersAndAddToWinners(team, playerRanks, 0);
+            else if (k < gladiatorCount[i])
+                CheckPlayersAndAddToWinners(team, playerRanks, 1);
+            else if (k < duelistCount[i])
+                CheckPlayersAndAddToWinners(team, playerRanks, 2);
+            else if (k < rivalCount[i])
+                CheckPlayersAndAddToWinners(team, playerRanks, 3);
+            else if (k < challengerCount[i])
+                CheckPlayersAndAddToWinners(team, playerRanks, 4);
+        }
+    }
+
+    uint32 mountId;
+    uint32 titles[5];
+    titles[1] = 42; // Gladiator
+    titles[2] = 43; // Duelist
+    titles[3] = 44; // Rival
+    titles[4] = 45; // Challenger
+    switch (seasonId)
+    {
+        case 1:
+        case 4: // Use Season 1 rewards for Season 4 since Brutal Gladiator title/mount do not exist in TBC client
+        default: mountId = 30609; titles[0] = 42; break;
+        case 2: mountId = 34092; titles[0] = 62; break;
+        case 3: mountId = 37676; titles[0] = 71; break;
+    }
+    CharTitlesEntry const* titleEntries[5]; // optimization
+    for (uint32 i = 0; i < 5; ++i)
+        titleEntries[i] = sCharTitlesStore.LookupEntry(titles[i]);
+
+    // Remove titles from online players
+    // Only Rank 1 titles are permanent
+    sObjectAccessor.ExecuteOnAllPlayers([&](Player* player)
+    {
+        player->SetTitle(titleEntries[1], true);
+        player->SetTitle(titleEntries[2], true);
+        player->SetTitle(titleEntries[3], true);
+        player->SetTitle(titleEntries[4], true);
+        player->SaveTitles();
+    });
+
+    // Remove Gladiator, Duelist and Rival from every offline player
+    CharacterDatabase.PExecute("UPDATE characters a SET knownTitles="
+        "CONCAT(CAST(TRIM(SUBSTRING_INDEX(knownTitles, ' ', 1))  AS UNSIGNED) &~0xE0000000, ' ', SUBSTR(knownTitles, LOCATE(' ', knownTitles)))"
+        "WHERE(CAST(TRIM(SUBSTRING_INDEX(knownTitles, ' ', 1))  AS UNSIGNED) & 0xE0000000) != 0");
+
+    // Remove Challenger from every offline player
+    CharacterDatabase.PExecute("UPDATE characters a SET knownTitles ="
+        "CONCAT(SUBSTRING_INDEX(knownTitles, ' ', 1), ' ', CAST(TRIM(SUBSTR(knownTitles, LOCATE(' ', knownTitles)))  AS UNSIGNED) &~0x00000001)"
+        "WHERE(CAST(TRIM(SUBSTR(knownTitles, LOCATE(' ', knownTitles)))  AS UNSIGNED) & 0x00000001) != 0");
+
+    for (auto& data : playerRanks)
+    {
+        Player* player = sObjectMgr.GetPlayer(data.first);
+        if (data.second <= 1) // gladiator reward
+        {
+            MailDraft draft;
+            draft.SetSubjectAndBody("Season Rewards", "On behalf of the Steamwheedle Fighting Circuit, we congratulate you for your successes in this arena season. In recognition of your skill and savagery, we hereby bestow upon you this Nether Drake. May it serve you well.");
+            Item* item = Item::CreateItem(mountId, 1, nullptr);
+            item->SaveToDB();                               // save for prevent lost at next mail load, if send fail then item will deleted
+            draft.AddItem(item);
+            MailSender sender;
+            draft.SendMailTo(MailReceiver(player, data.first), sender);
+        }
+        if (player)
+        {
+            player->SetTitle(titleEntries[data.second]);
+            player->SaveTitles();
+        }
+        else
+        {
+            QueryResult* result = CharacterDatabase.PQuery("SELECT knownTitles FROM characters WHERE guid = '%u'", data.first.GetCounter());
+            if (result)
+            {
+                uint32 titleValueCount = 2;
+                uint32 titleValues[2];
+                std::string titlesData = result->Fetch()[0].GetCppString();
+                Tokens tokens = StrSplit(titlesData, " ");
+                if (tokens.size() != titleValueCount)
+                    return;
+
+                Tokens::iterator iter;
+                uint32 index;
+                for (iter = tokens.begin(), index = 0; index < titleValueCount; ++iter, ++index)
+                    titleValues[index] = std::stoul((*iter).c_str());
+
+                SetTitleValues(titleValues[0], titleValues[1], titles[data.second]);
+
+                std::string newTitleData = std::to_string(titleValues[0]) + " " + std::to_string(titleValues[1]) + " ";
+                CharacterDatabase.PExecute("UPDATE characters SET knownTitles='%s' WHERE guid = '%u'", newTitleData.data(), data.first.GetCounter());
+                delete result;
+            }
+        }
+    }
+
+    ResetAllArenaData();
+
+    sWorld.SendWorldTextToAboveSecurity(SEC_GAMEMASTER, LANG_DIST_ARENA_REWARDS_END);
+}
+
+void BattleGroundMgr::ResetAllArenaData()
+{
+    for (ObjectMgr::ArenaTeamMap::iterator titr = sObjectMgr.GetArenaTeamMapBegin(); titr != sObjectMgr.GetArenaTeamMapEnd(); ++titr)
+    {
+        if (ArenaTeam* at = titr->second)
+        {
+            at->FinishSeason();                            // set all values back to default
+            at->SaveToDB();                                // save changes
+            at->NotifyStatsChanged();                      // notify the players of the changes
+        }
+    }
 }
 
 void BattleGroundMgr::BuildBattleGroundListPacket(WorldPacket& data, ObjectGuid guid, Player* plr, BattleGroundTypeId bgTypeId) const
@@ -1773,7 +1971,7 @@ void BattleGroundMgr::BuildBattleGroundListPacket(WorldPacket& data, ObjectGuid 
             data << uint32(*itr);
             ++count;
         }
-        data.put<uint32>(count_pos , count);
+        data.put<uint32>(count_pos, count);
     }
 }
 
@@ -1809,7 +2007,7 @@ bool BattleGroundMgr::IsArenaType(BattleGroundTypeId bgTypeId)
             return true;
         default:
             return false;
-    };
+    }
 }
 
 BattleGroundQueueTypeId BattleGroundMgr::BGQueueTypeId(BattleGroundTypeId bgTypeId, ArenaType arenaType)
@@ -1904,9 +2102,9 @@ void BattleGroundMgr::ScheduleQueueUpdate(uint32 arenaRating, ArenaType arenaTyp
     // we will use only 1 number created of bgTypeId and bracket_id
     uint64 schedule_id = ((uint64)arenaRating << 32) | (arenaType << 24) | (bgQueueTypeId << 16) | (bgTypeId << 8) | bracket_id;
     bool found = false;
-    for (uint8 i = 0; i < m_QueueUpdateScheduler.size(); ++i)
+    for (unsigned long long i : m_QueueUpdateScheduler)
     {
-        if (m_QueueUpdateScheduler[i] == schedule_id)
+        if (i == schedule_id)
         {
             found = true;
             break;
@@ -2014,9 +2212,9 @@ void BattleGroundMgr::LoadBattleEventIndexes()
     events.event1 = BG_EVENT_NONE;
     events.event2 = BG_EVENT_NONE;
     m_GameObjectBattleEventIndexMap.clear();             // need for reload case
-    m_GameObjectBattleEventIndexMap[-1] = events;
+    m_GameObjectBattleEventIndexMap[static_cast<uint32>(-1)] = events;
     m_CreatureBattleEventIndexMap.clear();               // need for reload case
-    m_CreatureBattleEventIndexMap[-1] = events;
+    m_CreatureBattleEventIndexMap[static_cast<uint32>(-1)] = events;
 
     uint32 count = 0;
 
@@ -2099,12 +2297,9 @@ void BattleGroundMgr::LoadBattleEventIndexes()
                 continue;
             }
             // we have an event which shouldn't exist
-            else
-            {
-                sLog.outErrorDb("BattleGroundEvent: %s with guid %u is registered, for a nonexistent event: map:%u, event1:%u, event2:%u",
-                                (gameobject) ? "gameobject" : "creature", dbTableGuidLow, map, events.event1, events.event2);
-                continue;
-            }
+            sLog.outErrorDb("BattleGroundEvent: %s with guid %u is registered, for a nonexistent event: map:%u, event1:%u, event2:%u",
+                    (gameobject) ? "gameobject" : "creature", dbTableGuidLow, map, events.event1, events.event2);
+            continue;
         }
 
         if (gameobject)

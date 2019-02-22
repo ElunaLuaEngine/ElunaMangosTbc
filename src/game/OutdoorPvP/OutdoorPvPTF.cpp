@@ -18,12 +18,12 @@
 
 #include "OutdoorPvPTF.h"
 #include "WorldPacket.h"
-#include "World.h"
-#include "ObjectMgr.h"
-#include "Object.h"
-#include "Creature.h"
-#include "GameObject.h"
-#include "Player.h"
+#include "World/World.h"
+#include "Globals/ObjectMgr.h"
+#include "Entities/Object.h"
+#include "Entities/Creature.h"
+#include "Entities/GameObject.h"
+#include "Entities/Player.h"
 
 OutdoorPvPTF::OutdoorPvPTF() : OutdoorPvP(),
     m_zoneWorldState(WORLD_STATE_TF_TOWERS_CONTROLLED),
@@ -39,8 +39,8 @@ OutdoorPvPTF::OutdoorPvPTF() : OutdoorPvP(),
     m_towerWorldState[3] = WORLD_STATE_TF_SOUTH_EAST_TOWER_NEUTRAL;
     m_towerWorldState[4] = WORLD_STATE_TF_SOUTH_TOWER_NEUTRAL;
 
-    for (uint8 i = 0; i < MAX_TF_TOWERS; ++i)
-        m_towerOwner[i] = TEAM_NONE;
+    for (auto& i : m_towerOwner)
+        i = TEAM_NONE;
 }
 
 void OutdoorPvPTF::FillInitialWorldStates(WorldPacket& data, uint32& count)
@@ -51,19 +51,25 @@ void OutdoorPvPTF::FillInitialWorldStates(WorldPacket& data, uint32& count)
         FillInitialWorldState(data, count, WORLD_STATE_TF_TOWER_COUNT_H, m_towersHorde);
         FillInitialWorldState(data, count, WORLD_STATE_TF_TOWER_COUNT_A, m_towersAlliance);
 
-        for (uint8 i = 0; i < MAX_TF_TOWERS; ++i)
-            FillInitialWorldState(data, count, m_towerWorldState[i], WORLD_STATE_ADD);
+        for (unsigned int i : m_towerWorldState)
+            FillInitialWorldState(data, count, i, WORLD_STATE_ADD);
     }
     else
-        UpdateTimerWorldState();
+    {
+        uint32 firstDigit, secondDigit, hoursLeft;
+        CalculateTimerWorldStateValues(firstDigit, secondDigit, hoursLeft);
+        FillInitialWorldState(data, count, WORLD_STATE_TF_TIME_MIN_FIRST_DIGIT, firstDigit);
+        FillInitialWorldState(data, count, WORLD_STATE_TF_TIME_MIN_SECOND_DIGIT, secondDigit);
+        FillInitialWorldState(data, count, WORLD_STATE_TF_TIME_HOURS, hoursLeft);
+    }
 }
 
 void OutdoorPvPTF::SendRemoveWorldStates(Player* player)
 {
     player->SendUpdateWorldState(m_zoneWorldState, WORLD_STATE_REMOVE);
 
-    for (uint8 i = 0; i < MAX_TF_TOWERS; ++i)
-        player->SendUpdateWorldState(m_towerWorldState[i], WORLD_STATE_REMOVE);
+    for (unsigned int i : m_towerWorldState)
+        player->SendUpdateWorldState(i, WORLD_STATE_REMOVE);
 }
 
 void OutdoorPvPTF::HandlePlayerEnterZone(Player* player, bool isMainZone)
@@ -117,16 +123,16 @@ void OutdoorPvPTF::HandleGameObjectCreate(GameObject* go)
 
 void OutdoorPvPTF::HandleObjectiveComplete(uint32 eventId, const std::list<Player*>& players, Team team)
 {
-    for (uint8 i = 0; i < MAX_TF_TOWERS; ++i)
+    for (const auto& terokkarTowerEvent : terokkarTowerEvents)
     {
         for (uint8 j = 0; j < 4; ++j)
         {
-            if (terokkarTowerEvents[i][j].eventEntry == eventId)
+            if (terokkarTowerEvent[j].eventEntry == eventId)
             {
-                for (std::list<Player*>::const_iterator itr = players.begin(); itr != players.end(); ++itr)
+                for (auto player : players)
                 {
-                    if ((*itr) && (*itr)->GetTeam() == team)
-                        (*itr)->AreaExploredOrEventHappens(team == ALLIANCE ? QUEST_SPIRITS_OF_AUCHINDOUM_ALLIANCE : QUEST_SPIRITS_OF_AUCHINDOUM_HORDE);
+                    if (player && player->GetTeam() == team)
+                        player->AreaExploredOrEventHappens(team == ALLIANCE ? QUEST_SPIRITS_OF_AUCHINDOUM_ALLIANCE : QUEST_SPIRITS_OF_AUCHINDOUM_HORDE);
                 }
                 return;
             }
@@ -135,7 +141,7 @@ void OutdoorPvPTF::HandleObjectiveComplete(uint32 eventId, const std::list<Playe
 }
 
 // process the capture events
-bool OutdoorPvPTF::HandleEvent(uint32 eventId, GameObject* go)
+bool OutdoorPvPTF::HandleEvent(uint32 eventId, GameObject* go, Unit* invoker)
 {
     for (uint8 i = 0; i < MAX_TF_TOWERS; ++i)
     {
@@ -251,8 +257,8 @@ void OutdoorPvPTF::LockZone(GameObject* go, uint32 towerId, Team team, uint32 ne
     sWorld.SendDefenseMessage(ZONE_ID_TEROKKAR_FOREST, team == ALLIANCE ? LANG_OPVP_TF_CAPTURE_ALL_TOWERS_A : LANG_OPVP_TF_CAPTURE_ALL_TOWERS_H);
 
     // remove tower states when zone has been captured and locked
-    for (uint8 i = 0; i < MAX_TF_TOWERS; ++i)
-        SendUpdateWorldState(m_towerWorldState[i], WORLD_STATE_REMOVE);
+    for (unsigned int i : m_towerWorldState)
+        SendUpdateWorldState(i, WORLD_STATE_REMOVE);
 
     m_towerWorldState[towerId] = newWorldState;
 }
@@ -276,8 +282,8 @@ void OutdoorPvPTF::UnlockZone()
     m_towerWorldState[2] = WORLD_STATE_TF_EAST_TOWER_NEUTRAL;
     m_towerWorldState[3] = WORLD_STATE_TF_SOUTH_EAST_TOWER_NEUTRAL;
     m_towerWorldState[4] = WORLD_STATE_TF_SOUTH_TOWER_NEUTRAL;
-    for (uint8 i = 0; i < MAX_TF_TOWERS; ++i)
-        SendUpdateWorldState(m_towerWorldState[i], WORLD_STATE_ADD);
+    for (unsigned int i : m_towerWorldState)
+        SendUpdateWorldState(i, WORLD_STATE_ADD);
 
     // update tower count
     m_towersAlliance = 0;
@@ -330,14 +336,21 @@ void OutdoorPvPTF::Update(uint32 diff)
 void OutdoorPvPTF::UpdateTimerWorldState()
 {
     // Calculate time
-    uint32 minutesLeft = m_zoneLockTimer / 60000;
-    uint32 hoursLeft = minutesLeft / 60;
-    minutesLeft -= hoursLeft * 60;
-    uint32 firstDigit = minutesLeft / 10;
+    uint32 firstDigit, secondDigit, hoursLeft;
+    CalculateTimerWorldStateValues(firstDigit, secondDigit, hoursLeft);
 
     SendUpdateWorldState(WORLD_STATE_TF_TIME_MIN_FIRST_DIGIT, firstDigit);
-    SendUpdateWorldState(WORLD_STATE_TF_TIME_MIN_SECOND_DIGIT, minutesLeft - firstDigit * 10);
+    SendUpdateWorldState(WORLD_STATE_TF_TIME_MIN_SECOND_DIGIT, secondDigit);
     SendUpdateWorldState(WORLD_STATE_TF_TIME_HOURS, hoursLeft);
+}
+
+void OutdoorPvPTF::CalculateTimerWorldStateValues(uint32& firstDigit, uint32& secondDigit, uint32& hoursLeft)
+{
+    uint32 minutesLeft = m_zoneLockTimer / 60000;
+    hoursLeft = minutesLeft / 60;
+    minutesLeft -= hoursLeft * 60;
+    firstDigit = minutesLeft / 10;
+    secondDigit = minutesLeft - firstDigit * 10;
 }
 
 // Handle the Terokkar towers lock during the update timer

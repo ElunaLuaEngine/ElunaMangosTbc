@@ -23,7 +23,7 @@
 #include <list>
 #include <errno.h>
 
-#if defined WIN32
+#ifdef _WIN32
 #include <Windows.h>
 #include <sys/stat.h>
 #include <direct.h>
@@ -402,7 +402,7 @@ bool processArgv(int argc, char** argv)
             {
                 hasInputPathParam = true;
                 strcpy(input_path, argv[i + 1]);
-                if (input_path[strlen(input_path) - 1] != '\\' || input_path[strlen(input_path) - 1] != '/')
+                if (input_path[strlen(input_path) - 1] != '\\' && input_path[strlen(input_path) - 1] != '/')
                     strcat(input_path, "/");
                 ++i;
             }

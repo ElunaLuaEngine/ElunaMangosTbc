@@ -16,15 +16,15 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include "Object.h"
-#include "Player.h"
+#include "Entities/Object.h"
+#include "Entities/Player.h"
 #include "BattleGround.h"
 #include "BattleGroundWS.h"
-#include "GameObject.h"
-#include "ObjectMgr.h"
+#include "Entities/GameObject.h"
+#include "Globals/ObjectMgr.h"
 #include "BattleGroundMgr.h"
 #include "WorldPacket.h"
-#include "Language.h"
+#include "Tools/Language.h"
 
 BattleGroundWS::BattleGroundWS(): m_ReputationCapture(0), m_HonorWinKills(0), m_HonorEndKills(0)
 {
@@ -207,7 +207,7 @@ void BattleGroundWS::EventPlayerCapturedFlag(Player* source)
     else if (m_TeamScores[TEAM_INDEX_HORDE] == BG_WS_MAX_TEAM_SCORE)
         winner = HORDE;
 
-    if (winner)
+    if (winner == ALLIANCE || winner == HORDE)
     {
         UpdateWorldState(BG_WS_FLAG_UNK_ALLIANCE, 0);
         UpdateWorldState(BG_WS_FLAG_UNK_HORDE, 0);
@@ -306,7 +306,7 @@ void BattleGroundWS::EventPlayerClickedOnFlag(Player* source, GameObject* target
         return;
 
     int32 message_id = 0;
-    ChatMsg type;
+    ChatMsg type = CHAT_MSG_BG_SYSTEM_NEUTRAL;
 
     uint8 event = (sBattleGroundMgr.GetGameObjectEventIndex(target_obj->GetGUIDLow())).event1;
 
@@ -493,9 +493,9 @@ void BattleGroundWS::Reset()
     m_flagCarrierHorde.Clear();
 
     bool isBGWeekend = BattleGroundMgr::IsBGWeekend(GetTypeID());
-    m_ReputationCapture = (isBGWeekend) ? 45 : 35;
-    m_HonorWinKills = (isBGWeekend) ? 3 : 1;
-    m_HonorEndKills = (isBGWeekend) ? 4 : 2;
+    m_ReputationCapture = (isBGWeekend) ? WS_WEEKEND_FLAG_CAPTURE_REPUTATION : WS_NORMAL_FLAG_CAPTURE_REPUTATION;
+    m_HonorWinKills = (isBGWeekend) ? WS_WEEKEND_WIN_KILLS : WS_NORMAL_WIN_KILLS;
+    m_HonorEndKills = (isBGWeekend) ? WS_WEEKEND_MAP_COMPLETE_KILLS : WS_NORMAL_MAP_COMPLETE_KILLS;
 }
 
 void BattleGroundWS::EndBattleGround(Team winner)
@@ -553,16 +553,11 @@ WorldSafeLocsEntry const* BattleGroundWS::GetClosestGraveYard(Player* player)
     {
         if (GetStatus() == STATUS_IN_PROGRESS)
             return sWorldSafeLocsStore.LookupEntry(WS_GRAVEYARD_MAIN_ALLIANCE);
-        else
-            return sWorldSafeLocsStore.LookupEntry(WS_GRAVEYARD_FLAGROOM_ALLIANCE);
+        return sWorldSafeLocsStore.LookupEntry(WS_GRAVEYARD_FLAGROOM_ALLIANCE);
     }
-    else
-    {
-        if (GetStatus() == STATUS_IN_PROGRESS)
-            return sWorldSafeLocsStore.LookupEntry(WS_GRAVEYARD_MAIN_HORDE);
-        else
-            return sWorldSafeLocsStore.LookupEntry(WS_GRAVEYARD_FLAGROOM_HORDE);
-    }
+    if (GetStatus() == STATUS_IN_PROGRESS)
+        return sWorldSafeLocsStore.LookupEntry(WS_GRAVEYARD_MAIN_HORDE);
+    return sWorldSafeLocsStore.LookupEntry(WS_GRAVEYARD_FLAGROOM_HORDE);
 }
 
 void BattleGroundWS::FillInitialWorldStates(WorldPacket& data, uint32& count)

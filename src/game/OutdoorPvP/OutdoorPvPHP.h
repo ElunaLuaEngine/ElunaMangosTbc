@@ -21,7 +21,9 @@
 
 #include "Common.h"
 #include "OutdoorPvP.h"
-#include "Language.h"
+#include "Tools/Language.h"
+
+#include "World/WorldStateDefines.h"
 
 enum
 {
@@ -39,7 +41,7 @@ enum
     NPC_CAPTURE_CREDIT_BROKEN_HILL          = 19032,
 
     // misc
-    HONOR_REWARD_HELLFIRE                   = 18,
+    HONOR_REWARD_HELLFIRE                   = 10, // pre 2.0.6 is 18
 
     // gameobjects
     GO_TOWER_BANNER_OVERLOOK                = 182525,
@@ -91,24 +93,6 @@ enum
     GO_ARTKIT_STADIUM_ALLIANCE              = 67,
     GO_ARTKIT_STADIUM_HORDE                 = 68,
     GO_ARTKIT_STADIUM_NEUTRAL               = 69,
-
-    // world states
-    WORLD_STATE_HP_TOWER_DISPLAY_A          = 2490,
-    WORLD_STATE_HP_TOWER_DISPLAY_H          = 2489,
-    WORLD_STATE_HP_TOWER_COUNT_ALLIANCE     = 2476,
-    WORLD_STATE_HP_TOWER_COUNT_HORDE        = 2478,
-
-    WORLD_STATE_HP_BROKEN_HILL_ALLIANCE     = 2483,
-    WORLD_STATE_HP_BROKEN_HILL_HORDE        = 2484,
-    WORLD_STATE_HP_BROKEN_HILL_NEUTRAL      = 2485,
-
-    WORLD_STATE_HP_OVERLOOK_ALLIANCE        = 2480,
-    WORLD_STATE_HP_OVERLOOK_HORDE           = 2481,
-    WORLD_STATE_HP_OVERLOOK_NEUTRAL         = 2482,
-
-    WORLD_STATE_HP_STADIUM_ALLIANCE         = 2471,
-    WORLD_STATE_HP_STADIUM_HORDE            = 2470,
-    WORLD_STATE_HP_STADIUM_NEUTRAL          = 2472
 };
 
 struct HellfireTowerEvent
@@ -155,7 +139,7 @@ class OutdoorPvPHP : public OutdoorPvP
         void FillInitialWorldStates(WorldPacket& data, uint32& count) override;
         void SendRemoveWorldStates(Player* player) override;
 
-        bool HandleEvent(uint32 eventId, GameObject* go) override;
+        bool HandleEvent(uint32 eventId, GameObject* go, Unit* invoker) override;
         void HandleObjectiveComplete(uint32 eventId, const std::list<Player*>& players, Team team) override;
 
         void HandleGameObjectCreate(GameObject* go) override;
